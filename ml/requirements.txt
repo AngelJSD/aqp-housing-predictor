@@ -1,0 +1,6 @@
+kaggle>=1.6
+pandas>=2.2
+pyarrow>=17.0
+jupyter>=1.0
+ipykernel>=6.29
+nbconvert>=7.16

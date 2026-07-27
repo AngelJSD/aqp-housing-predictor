@@ -1,0 +1,16 @@
+data/raw/*
+!data/raw/README.md
+data/processed/
+
+node_modules/
+__pycache__/
+*.pyc
+venv/
+.venv/
+.ipynb_checkpoints/
+
+.env
+
+mlruns/
+
+.DS_Store
