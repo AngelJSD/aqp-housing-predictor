@@ -59,3 +59,55 @@ Corre el pipeline completo (filtrar Arequipa → deduplicar → completar superf
 Cada regla vive como función independiente e importable en `ml/data_prep/clean_arequipa.py` — se reusan tal cual en el paso 10 del plan (lote de anuncios reales actuales), no se duplica la lógica.
 
 Con esto, la tarea 1 del plan está completa. Ver `proyecto-mlops-plan.md` para el detalle de cada decisión.
+
+## Etapa 2 — Features y catálogo de metadata
+
+**2.1 EDA de features**
+
+```bash
+source .venv/bin/activate
+jupyter nbconvert --to notebook --execute --inplace notebooks/02_feature_eda.ipynb
+```
+
+Confirma que distrito, superficie, tipo de propiedad y tipo de operación son predictivas, y documenta con evidencia real por qué el precio promedio por m² por distrito necesita leave-one-out suavizado (no un promedio simple) para evitar leakage.
+
+**2.2 Construcción de features → tabla `features`**
+
+```bash
+source .venv/bin/activate
+python3 ml/data_prep/build_features.py
+```
+
+Lee `data/processed/listings.parquet`, agrega la feature derivada `district_avg_price_per_m2`, y guarda `data/processed/features.parquet` (gitignored, se regenera con este comando). Esta es la tabla que lee el baseline (paso 3) para entrenar — **no** el feature store real de Feast, que recién se construye en el paso 5.
+
+**2.3 Catálogo `feature_metadata`**
+
+`ml/feature_metadata.csv` — a diferencia de `data/processed/`, este archivo sí se trackea en git (es documentación autorada, no dato regenerable). Vive como CSV porque Postgres todavía no existe (se levanta en el paso 4); se carga a la tabla real ahí.
+
+```bash
+python3 -c "import pandas as pd; print(pd.read_csv('ml/feature_metadata.csv'))"
+```
+
+Con esto, la tarea 2 del plan está completa. Ver `proyecto-mlops-plan.md` para el detalle de cada decisión.
+
+## Etapa 3 — Modelo baseline (sin infraestructura)
+
+**3.1 Exploración de decisiones de modelado**
+
+```bash
+source .venv/bin/activate
+jupyter nbconvert --to notebook --execute --inplace notebooks/03_baseline_model.ipynb
+```
+
+Requiere XGBoost (en Mac: `brew install libomp` si falla el import). Documenta con evidencia real: encoding nativo de categóricas vs one-hot, un modelo unificado vs dos modelos separados (Venta/Alquiler — el unificado da R²=**-2593** en Alquiler con target crudo, catastrófico), `price_usd` vs `log(price_usd)` para cada modelo, estrategia de split, y las métricas elegidas (R², RMSE, MAE, MAPE).
+
+**3.2 Entrenamiento → modelos baseline**
+
+```bash
+source .venv/bin/activate
+python3 ml/training/train.py
+```
+
+Entrena y guarda dos modelos XGBoost (uno por `operation_type`) en `data/processed/models/` (gitignored). Imprime R²/RMSE/MAE/MAPE de cada uno, comparado contra un baseline trivial (predecir la media) — mismo mecanismo de split que el notebook, mismos números.
+
+Con esto, la tarea 3 del plan está completa. Ver `proyecto-mlops-plan.md` para el detalle de cada decisión.
