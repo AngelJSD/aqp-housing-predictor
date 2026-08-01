@@ -54,7 +54,7 @@ source .venv/bin/activate
 python3 ml/data_prep/clean_arequipa.py
 ```
 
-Corre el pipeline completo (filtrar Arequipa → deduplicar → completar superficie → descartar incompletos → normalizar moneda → filtrar outliers → imputar geo → guardar) e imprime el conteo de filas en cada paso. Genera `data/processed/listings.parquet` (gitignored, se regenera con este comando).
+Corre el pipeline completo (filtrar Arequipa → deduplicar → completar superficie → descartar incompletos → normalizar moneda → filtrar outliers de precio → filtrar outliers de precio-por-m² → imputar geo → guardar) e imprime el conteo de filas en cada paso. Genera `data/processed/listings.parquet` (gitignored, se regenera con este comando).
 
 Cada regla vive como función independiente e importable en `ml/data_prep/clean_arequipa.py` — se reusan tal cual en el paso 10 del plan (lote de anuncios reales actuales), no se duplica la lógica.
 
@@ -99,7 +99,11 @@ source .venv/bin/activate
 jupyter nbconvert --to notebook --execute --inplace notebooks/03_baseline_model.ipynb
 ```
 
-Requiere XGBoost (en Mac: `brew install libomp` si falla el import). Documenta con evidencia real: encoding nativo de categóricas vs one-hot, un modelo unificado vs dos modelos separados (Venta/Alquiler — el unificado da R²=**-2593** en Alquiler con target crudo, catastrófico), `price_usd` vs `log(price_usd)` para cada modelo, estrategia de split, y las métricas elegidas (R², RMSE, MAE, MAPE).
+Requiere XGBoost (en Mac: `brew install libomp` si falla el import). Documenta con evidencia real: encoding nativo de categóricas vs one-hot, un modelo unificado vs dos modelos separados (Venta/Alquiler — el unificado da R²=**-567** en Alquiler con target crudo, catastrófico), `price_usd` vs `log(price_usd)` para cada modelo, estrategia de split, y las métricas elegidas (R², RMSE, MAE, MAPE).
+
+También incluye, a partir de una revisión externa: chequeo de overfitting (train vs. test) y una validación Out-of-Time (retener febrero 2020 completo). El OoT reveló un bug de calidad de datos en el paso 1 (filas con `surface` casi 0 y precio/m² absurdo que la limpieza original no filtraba) — **ya corregido** (`filter_surface_sanity` en `clean_arequipa.py`, paso 1).
+
+El overfitting también está resuelto — con un giro interesante: regularización manual a ciegas empeoró el modelo, y tunear sobre un solo split de validación pareció ganar pero colapsó en el split de producción (inestable, no una mejora real). Solo 5-fold cross-validation reveló el problema de verdad (los defaults de Venta tienen R² promedio de **-0.26** entre folds, algo que el split único usado en el resto del notebook ocultaba por completo). `max_depth=5, min_child_weight=3` corrige eso de forma estable para ambos modelos — ya adoptado en `ml/training/train.py`. Detalle completo en `proyecto-mlops-plan.md`, tarea 3.
 
 **3.2 Entrenamiento → modelos baseline**
 

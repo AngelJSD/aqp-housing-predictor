@@ -92,6 +92,24 @@ def filter_price_outliers(df: pd.DataFrame, lower: float = 0.01, upper: float = 
     return df[(df["price_usd"] >= lo) & (df["price_usd"] <= hi)]
 
 
+def filter_surface_sanity(df: pd.DataFrame, min_surface: float = 10.0) -> pd.DataFrame:
+    """Drop rows with implausibly small surface — data-entry errors, not
+    real listings.
+
+    Found via task 3's Out-of-Time validation (external ML-engineer review):
+    filter_price_outliers only filters price, never price/m2, so rows like
+    surface=2 / price_usd=$2.148M (implied $1,074,000/m2) survived and
+    distorted district_avg_price_per_m2 enough to break OoT stability.
+    A percentile cut on price/m2 was considered and rejected — it would drop
+    ~130 rows, mostly legitimate (e.g. large cheap rural lots have a real,
+    low price/m2). An absolute floor is more surgical: every row below 10 m2
+    checked was an obvious missing-digit typo (a "Local comercial" at
+    surface=4 priced like it's 40, etc.) — no property_type in this dataset
+    legitimately lists under 10 m2.
+    """
+    return df[df["surface"] >= min_surface]
+
+
 def impute_geo(df: pd.DataFrame) -> pd.DataFrame:
     """Fill missing lat/lon with the mean centroid of their district (l4).
 
@@ -135,8 +153,11 @@ def main() -> None:
     no_outliers = filter_price_outliers(normalized)
     print(f"After price outlier filtering: {len(no_outliers)} rows ({len(normalized) - len(no_outliers)} dropped)")
 
-    missing_geo_before = int((no_outliers["lat"].isna() | no_outliers["lon"].isna()).sum())
-    geo_complete = impute_geo(no_outliers)
+    sane_surface = filter_surface_sanity(no_outliers)
+    print(f"After surface sanity filter: {len(sane_surface)} rows ({len(no_outliers) - len(sane_surface)} dropped)")
+
+    missing_geo_before = int((sane_surface["lat"].isna() | sane_surface["lon"].isna()).sum())
+    geo_complete = impute_geo(sane_surface)
     missing_geo_after = int((geo_complete["lat"].isna() | geo_complete["lon"].isna()).sum())
     print(f"Geo imputation: {missing_geo_before} rows missing lat/lon before, {missing_geo_after} after")
 
