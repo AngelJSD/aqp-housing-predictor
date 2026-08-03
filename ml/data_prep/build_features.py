@@ -23,8 +23,8 @@ def load_listings(path: Path = LISTINGS_PATH) -> pd.DataFrame:
     return pd.read_parquet(path)
 
 
-def smoothed_district_avg(df: pd.DataFrame, k: int = SMOOTHING_K) -> pd.Series:
-    """Leave-one-out mean of price_per_m2 per (operation_type, l4), shrunk
+def smoothed_district_avg(df: pd.DataFrame, k: int = SMOOTHING_K, district_col: str = "l4") -> pd.Series:
+    """Leave-one-out mean of price_per_m2 per (operation_type, district), shrunk
     toward the operation_type's global mean by k pseudo-observations.
 
     Decision + evidence in notebooks/02_feature_eda.ipynb ("Derived feature:
@@ -32,9 +32,13 @@ def smoothed_district_avg(df: pd.DataFrame, k: int = SMOOTHING_K) -> pd.Series:
     each row's own price into its own feature (203% self-inflation observed
     on a 6-listing district with one outlier), and plain leave-one-out is
     undefined for singleton districts. Smoothing fixes both in one formula.
+
+    `district_col` defaults to `l4` (this module's own raw column name)
+    but task 6 reuses this exact formula fit on the train fold only, where
+    the column has already been renamed to `district` by Feast's retrieval.
     """
     price_per_m2 = df["price_usd"] / df["surface"]
-    grp = price_per_m2.groupby([df["operation_type"], df["l4"]])
+    grp = price_per_m2.groupby([df["operation_type"], df[district_col]])
     count = grp.transform("count")
     total = grp.transform("sum")
     global_mean = price_per_m2.groupby(df["operation_type"]).transform("mean")
@@ -45,15 +49,21 @@ def smoothed_district_avg(df: pd.DataFrame, k: int = SMOOTHING_K) -> pd.Series:
 
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
     """Base features (district, surface, property/operation type) + the
-    derived district_avg_price_per_m2, alongside id and the target.
+    derived district_avg_price_per_m2, alongside id, created_on and the target.
 
     `l4` is renamed to `district` here — the feature layer gets human-
     readable names; `listings.parquet` keeps the raw dataset's l1..l6 naming.
+
+    `created_on` is carried through as the Feast `event_timestamp` (task 5):
+    it's already the canonical listing date elsewhere in this project (dedup
+    ordering in clean_arequipa.py, the OoT month split in the baseline
+    notebook) — confirmed identical to `start_date` for all 6,811 rows, so
+    no second date concept is introduced.
     """
     df = df.copy()
     df["district_avg_price_per_m2"] = smoothed_district_avg(df)
     df = df.rename(columns={"l4": "district"})
-    return df[["id", *FEATURE_COLS, TARGET_COL]]
+    return df[["id", "created_on", *FEATURE_COLS, TARGET_COL]]
 
 
 def save_features(df: pd.DataFrame, path: Path = FEATURES_PATH) -> None:

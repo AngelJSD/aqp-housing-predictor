@@ -1,0 +1,25 @@
+project: aqp_housing
+registry: data/registry.db
+provider: local
+
+offline_store:
+  type: postgres
+  host: ${POSTGRES_HOST}
+  port: ${POSTGRES_PORT}
+  database: ${POSTGRES_DB}
+  db_schema: public
+  user: ${POSTGRES_USER}
+  password: ${POSTGRES_PASSWORD}
+  # Local dev Postgres has no SSL configured. Default for this Feast store
+  # is sslmode=require, which fails against a non-SSL server (verified:
+  # "server does not support SSL, but SSL was required") — disable it.
+  sslmode: disable
+
+online_store:
+  type: redis
+  connection_string: ${REDIS_HOST}:${REDIS_PORT}
+
+entity_key_serialization_version: 3
+
+auth:
+  type: no_auth

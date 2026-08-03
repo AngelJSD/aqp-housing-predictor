@@ -13,4 +13,6 @@ venv/
 
 mlruns/
 
+feature_repo/data/
+
 .DS_Store

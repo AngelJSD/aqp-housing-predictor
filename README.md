@@ -115,3 +115,201 @@ python3 ml/training/train.py
 Entrena y guarda dos modelos XGBoost (uno por `operation_type`) en `data/processed/models/` (gitignored). Imprime R²/RMSE/MAE/MAPE de cada uno, comparado contra un baseline trivial (predecir la media) — mismo mecanismo de split que el notebook, mismos números.
 
 Con esto, la tarea 3 del plan está completa. Ver `proyecto-mlops-plan.md` para el detalle de cada decisión.
+
+## Etapa 4 — Infraestructura base (Docker Compose)
+
+Requiere Docker y Docker Compose.
+
+**4.1 Variables de entorno**
+
+```bash
+cp .env.example .env
+```
+
+Un solo Postgres para todo el stack (DB `aqp_housing` para nuestras tablas, DB separada `mlflow` para el backend store de MLflow — ver `proyecto-mlops-plan.md`, tarea 4, para el porqué). Nota Mac: `MLFLOW_HOST_PORT` es 5001, no 5000 — AirPlay Receiver/ControlCenter ya ocupa el 5000.
+
+**4.2 Levantar los 4 servicios**
+
+```bash
+docker compose up -d --build
+```
+
+Postgres (con la tabla `feature_metadata`, creada por `infra/postgres/init/` al primer arranque), Redis (online store, persistencia AOF), MLflow server (backend en Postgres, artifacts proxied a `./mlruns`), Feast feature server (aplica el registry vacío y sirve — feature views recién se definen en el paso 5).
+
+```bash
+docker compose ps   # los 4 deben quedar "healthy"
+```
+
+**4.3 Cargar el catálogo `feature_metadata`**
+
+```bash
+source .venv/bin/activate
+python3 ml/data_prep/load_feature_metadata.py
+```
+
+Upsert por `name` (re-correrlo tras editar `ml/feature_metadata.csv` no duplica filas) — separado del init de Postgres a propósito, para no depender de reiniciar el volumen si el CSV cambia.
+
+**4.4 Verificar cada servicio**
+
+```bash
+docker compose exec postgres psql -U aqp -d aqp_housing -c "SELECT * FROM feature_metadata;"   # 5 filas
+docker compose exec redis redis-cli ping                                                         # PONG
+curl http://localhost:5001/                                                                       # UI de MLflow, HTTP 200
+curl http://localhost:6566/health                                                                 # feature server de Feast, HTTP 200
+```
+
+Con esto, la tarea 4 del plan está completa. Ver `proyecto-mlops-plan.md` para el detalle de cada decisión (incluyendo dos bugs reales encontrados y corregidos antes de dar el paso por terminado: el `sslmode` por defecto de Feast contra Postgres, y el manejo de artifacts de MLflow con clientes remotos).
+
+## Etapa 5 — Feature store (Feast)
+
+Requiere el stack de la Etapa 4 arriba (`docker compose up -d`).
+
+**5.1 Cargar los valores de features a Postgres**
+
+```bash
+source .venv/bin/activate
+python3 ml/data_prep/load_features_to_postgres.py
+```
+
+Reemplaza por completo la tabla `features` (Postgres) con el contenido actual de `data/processed/features.parquet` — a diferencia de `feature_metadata` (upsert por nombre), esta tabla se regenera entera cada vez, así que el loader hace `TRUNCATE` + insert masivo. `created_on` (la fecha real del anuncio, ya confirmada idéntica a `start_date` en las 6,811 filas) es el `event_timestamp` que usa Feast para el join point-in-time.
+
+**5.2 Definir las feature views**
+
+`feature_repo/features.py` — `Entity` (`listing`, join key `id`) + `FeatureView` `arequipa_listings_features`, con exactamente las 5 features ya documentadas en `ml/feature_metadata.csv`. Se aplican solas: el `feast apply` del entrypoint (Etapa 4) las recoge en cada `docker compose up`, sin tocar `Dockerfile`/`entrypoint.sh`.
+
+**5.3 Materializar al online store**
+
+```bash
+docker compose exec feast feast -c /app/feature_repo materialize 2019-01-01T00:00:00 2020-04-01T00:00:00
+```
+
+Empuja los valores del offline store (Postgres) al online store (Redis) — un `materialize` de rango completo, no incremental, porque el dataset es un histórico estático de 2020 (no un stream). Se re-corre a mano cuando cambian los datos, no en cada arranque del contenedor.
+
+**5.4 Verificar**
+
+```bash
+docker compose exec redis redis-cli DBSIZE   # 6811 — una key por listing
+
+curl -s -X POST http://localhost:6566/get-online-features \
+  -H "Content-Type: application/json" \
+  -d '{
+    "features": ["arequipa_listings_features:district", "arequipa_listings_features:surface"],
+    "entities": {"id": ["KJlhh3C7WTxl8gf76ZL82g=="]}
+  }'
+```
+
+Con esto, la tarea 5 del plan está completa. Ver `proyecto-mlops-plan.md` para el detalle de cada decisión, incluyendo la validación cruzada real (fuente vs. offline store vs. online store, mismo `id`, mismos valores).
+
+## Etapa 6 — Modelo definitivo (Feast + MLflow + ONNX)
+
+Requiere el stack de la Etapa 4 arriba, con datos cargados y materializados (Etapa 5).
+
+**6.1 Entrenar, trackear y registrar**
+
+```bash
+source .venv/bin/activate
+python3 ml/training/train.py
+```
+
+Lee las 4 features base desde el offline store de Feast (`get_historical_features`), en vez de `data/processed/features.parquet` directo como en la Etapa 3. Cambio importante respecto al baseline: `district_avg_price_per_m2` (la 5ª feature del catálogo) se **elimina del modelo** — recalcularla sin leakage (fit solo en el fold de train, como quedó pendiente desde la Etapa 3) resultó *peor* y más inestable que no tenerla en absoluto; el detalle completo de esa investigación (no solo la conclusión) está en `notebooks/04_definitive_model.ipynb`. `MODEL_PARAMS` fue re-tuneado por 5-fold CV para el nuevo set de 3 features.
+
+Cada corrida trackea en MLflow (experiment `arequipa-housing-price`, un run por `operation_type`) y registra el modelo en el Model Registry (`arequipa-price-venta`, `arequipa-price-alquiler`). UI en `http://localhost:5001`.
+
+**6.2 Exportar a ONNX y validar**
+
+```bash
+python3 ml/training/export_onnx.py
+```
+
+Convierte ambos modelos a ONNX (`onnxmltools`) y valida las predicciones contra el modelo original sobre el test set completo de cada uno, tolerancia explícita (`1e-3`). El modelo con categóricas nativas (`enable_categorical=True`, decisión de la Etapa 3) exporta directo — no hizo falta ningún fallback a one-hot/ordinal, contra lo que se esperaba inicialmente. Guarda `data/processed/models/{venta,alquiler}_xgb.onnx` (gitignored, igual que los `.json`).
+
+**6.3 Verificar**
+
+```bash
+curl -s http://localhost:5001/api/2.0/mlflow/registered-models/search   # arequipa-price-venta y arequipa-price-alquiler, status READY
+```
+
+Con esto, la tarea 6 del plan está completa. Ver `proyecto-mlops-plan.md` para el detalle de cada decisión — en particular, la investigación real detrás de por qué se eliminó `district_avg_price_per_m2` (no fue un ajuste menor: un solo split cayó a R²=-0.61 en Venta con los hiperparámetros del baseline, confirmado no ser un bug antes de decidir el fix) y los dos gotchas reales de la exportación a ONNX (nombres de feature `f%d`, códigos de categoría en vez de strings).
+
+## Etapa 7 — API de inferencia (Node.js/Fastify)
+
+Requiere el stack completo arriba, con los modelos ya entrenados y exportados (Etapa 6) — `data/processed/models/{venta,alquiler}_xgb.{json,onnx,categories.json}` tienen que existir antes de levantar este servicio.
+
+**Decisión importante, se aparta de la redacción original del plan:** el endpoint `/predict` **no consulta a Feast en tiempo real**. La única feature que lo hubiera justificado (`district_avg_price_per_m2`, para una propiedad nueva sin `id` en el feature store) se eliminó del modelo en la Etapa 6 — no aportaba nada real más allá de `district`. Mostrarla igual como "contexto" en la UI se descartó a propósito: es el mismo precio por m² ya reflejado en la predicción, presentado como si fuera una señal independiente — confunde más de lo que aclara. El online store de Feast ya quedó demostrado de punta a punta en la Etapa 5; no hacía falta repetirlo acá sin una necesidad real del producto. Detalle completo en `proyecto-mlops-plan.md`, tarea 7.
+
+**7.1 Levantar el servicio**
+
+```bash
+docker compose up -d --build api
+```
+
+Carga los dos modelos ONNX al arrancar y resuelve la versión registrada de cada uno contra el Model Registry de MLflow (cacheada, no por request). Nota real: `node:22-alpine` no sirve para este servicio — `onnxruntime-node` necesita glibc, y falla en musl (`ERR_DLOPEN_FAILED`); el `Dockerfile` usa `node:22-slim`.
+
+**7.2 Probar una predicción**
+
+```bash
+curl -s -X POST http://localhost:3000/predict \
+  -H "Content-Type: application/json" \
+  -d '{"district": "Cayma", "surface": 115, "property_type": "Departamento", "operation_type": "Venta"}'
+```
+
+Un distrito no visto en entrenamiento (ej. uno inventado) no da error — se enruta como *missing*, igual que en Python (`onnxruntime-node` probado directo contra `onnxruntime` de Python con el mismo caso, coinciden).
+
+**7.3 Verificar trazabilidad**
+
+```bash
+docker compose exec postgres psql -U aqp -d aqp_housing -c "SELECT * FROM prediction_logs ORDER BY id DESC LIMIT 5;"
+```
+
+Cada predicción exitosa queda registrada (input, output, latencia, versión de modelo) — un 400 de validación (falta un campo, `operation_type` inválido) correctamente no genera una fila.
+
+Con esto, la tarea 7 del plan está completa. Ver `proyecto-mlops-plan.md` para el detalle de cada decisión, incluyendo el bug real de `--allowed-hosts` de MLflow que solo se manifestó al conectar desde otro contenedor (mismo mecanismo de seguridad que ya había aparecido en la Etapa 4, pero recién disparado ahora).
+
+## Etapa 8 — Monitoreo (Prometheus + Evidently)
+
+Requiere el stack completo arriba, con la API corriendo (Etapa 7).
+
+**8.1 Levantar Prometheus**
+
+```bash
+docker compose up -d --build prometheus
+```
+
+Scrapea `api:3000/metrics` cada 15s (`infra/prometheus/prometheus.yml`). UI en `http://localhost:9090`.
+
+```bash
+curl -s "http://localhost:9090/api/v1/query?query=http_requests_total" | python3 -m json.tool
+```
+
+Latencia (`http_request_duration_seconds`) y throughput (`http_requests_total`), ambos labeleados por `method`/`route`/`status_code` — la tasa de error se deriva del label `status_code`, no hace falta un contador aparte.
+
+**8.2 Generar reportes de drift**
+
+```bash
+source .venv/bin/activate
+python3 ml/monitoring/drift_report.py
+```
+
+Compara `district`/`surface`/`property_type` de la tabla `features` (entrenamiento) contra `prediction_logs` (tráfico reciente vía la API) — drift de **features de entrada**, no de exactitud de predicción (no hay precio real para el tráfico servido). Un reporte HTML por `operation_type` en `data/processed/drift_reports/` (gitignored). Con los pocos requests de prueba disponibles hoy (misma distribución de 2020) no hay drift interesante que mostrar todavía — eso es explícitamente el paso 10 (lote real de anuncios actuales).
+
+Con esto, la tarea 8 del plan está completa. Ver `proyecto-mlops-plan.md` para el detalle de cada decisión, incluyendo un bug real de entorno (un hook de seguridad de NLTK, dependencia transitiva de Evidently, bloqueaba el import porque el `.venv` de este proyecto vive dentro del repo — falso positivo confirmado leyendo su código fuente, resuelto con la variable de escape que la propia librería expone).
+
+## Etapa 9 — Dashboard de observabilidad (Next.js)
+
+Requiere el stack completo arriba, con tráfico y reportes generados (Etapas 7/8) para que haya algo real que mostrar.
+
+**Decisión de arquitectura:** todas las llamadas a servicios externos (MLflow, Prometheus, Postgres, la API de inferencia) pasan por el backend de Next.js — el navegador solo habla con el propio dashboard, nunca directo con otro servicio. Evita configurar CORS en la API y el gotcha ya conocido de este proyecto (código server-side necesita nombres de servicio internos, código en el navegador necesita puertos mapeados al host). El formulario de predicción interactivo (no estaba en la lista original del plan para este paso, pero el guion del video sí lo exige) también pasa por un proxy server-side. Detalle completo en `proyecto-mlops-plan.md`, tarea 9.
+
+**9.1 Levantar el dashboard**
+
+```bash
+docker compose up -d --build dashboard
+```
+
+UI en `http://localhost:3002`. Secciones: Predictor, Modelos (MLflow), Monitoreo (Prometheus), Drift (Evidently), Catálogo de features (`feature_metadata`).
+
+**9.2 Probar el predictor**
+
+Abrir `http://localhost:3002/predictor` y completar el formulario (ej. distrito `Cayma`, superficie `115`, tipo `Departamento`, operación `Venta`) — llama a la API de inferencia server-side y muestra la estimación junto con una nota de confianza (Venta tiene más variabilidad que Alquiler entre folds de CV, ver paso 3).
+
+Con esto, la tarea 9 del plan está completa. Ver `proyecto-mlops-plan.md` para el detalle de cada decisión, incluyendo dos bugs reales de red en el contenedor del dashboard: Docker fija `HOSTNAME` al ID del contenedor (el servidor standalone de Next hace `HOSTNAME || '0.0.0.0'`, así que sin corregirlo termina escuchando solo en la IP interna, no en `0.0.0.0`) y `wget` en Alpine resuelve `localhost` a IPv6 antes que IPv4 (el healthcheck usa `127.0.0.1` explícito por eso). También un bug real detectado con `next build` (no solo `next dev`): la página del catálogo de features se prerenderizaba en build time con datos de la DB horneados de forma estática — corregido con `force-dynamic`.

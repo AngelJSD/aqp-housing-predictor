@@ -1,0 +1,189 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_HOST_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_HOST_PORT}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mlflow:
+    build: ./infra/mlflow
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      MLFLOW_BACKEND_STORE_URI: ${MLFLOW_BACKEND_STORE_URI}
+    command:
+      - mlflow
+      - server
+      - --backend-store-uri
+      - ${MLFLOW_BACKEND_STORE_URI}
+      - --artifacts-destination
+      - ${MLFLOW_ARTIFACTS_DESTINATION}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "5000"
+      # Default allowed hosts (localhost + private IPs) rejects the `api`
+      # container's requests — its Host header is the Compose service name
+      # `mlflow`, which matches neither. Real 403 hit when task 7's API
+      # tried to resolve a model version at startup. '*' is fine here:
+      # this port is never exposed beyond localhost + the Compose network
+      # (single-machine dev/demo stack, not a public service).
+      - --allowed-hosts
+      - "*"
+    ports:
+      - "${MLFLOW_HOST_PORT}:5000"
+    volumes:
+      - ./mlruns:${MLFLOW_ARTIFACTS_DESTINATION}
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  feast:
+    build: ./feature_repo
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Internal Compose network topology, not user config — fixed service
+      # names/ports, unlike the *_HOST_PORT vars above.
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+    ports:
+      - "${FEAST_HOST_PORT}:6566"
+    volumes:
+      - ./feature_repo:/app/feature_repo
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:6566/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MODELS_DIR: /data/models
+      PORT: "3000"
+    ports:
+      - "${API_HOST_PORT}:3000"
+    volumes:
+      - ./data/processed/models:/data/models:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  prometheus:
+    image: prom/prometheus:v3.6.0
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "${PROMETHEUS_HOST_PORT}:9090"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  dashboard:
+    build: ./dashboard
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      MLFLOW_URL: http://mlflow:5000
+      PROMETHEUS_URL: http://prometheus:9090
+      API_URL: http://api:3000
+      DRIFT_REPORTS_DIR: /data/drift_reports
+      PORT: "3000"
+      # Docker auto-sets HOSTNAME to the container ID; Next's standalone
+      # server.js does `process.env.HOSTNAME || '0.0.0.0'`, so without
+      # this override it binds only to that container IP, not loopback —
+      # confirmed for real: wget to localhost inside the container failed
+      # with connection refused even though the mapped host port worked.
+      HOSTNAME: "0.0.0.0"
+    ports:
+      - "${DASHBOARD_HOST_PORT}:3000"
+    volumes:
+      - ./data/processed/drift_reports:/data/drift_reports:ro
+    healthcheck:
+      # 127.0.0.1, not localhost: wget in this Alpine image resolves
+      # "localhost" to ::1 (IPv6) first, and the server only binds IPv4 —
+      # confirmed for real, "Connection refused" against localhost even
+      # while listening correctly on 0.0.0.0:3000.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
