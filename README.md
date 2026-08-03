@@ -2,6 +2,8 @@
 
 Pipeline MLOps de extremo a extremo: desde el dato crudo hasta un modelo en producción con feature store, tracking, API de inferencia, monitoreo y dashboard.
 
+![Arquitectura del pipeline](architecture.svg)
+
 ## Etapa 0 — Setup
 
 Requiere Python 3.

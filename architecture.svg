@@ -1,0 +1,240 @@
+<svg viewBox="0 0 1240 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagrama de arquitectura del pipeline de MLOps">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#7e93a3" />
+    </marker>
+    <marker id="arrow-primary" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#1f8f7f" />
+    </marker>
+  </defs>
+
+  <style>
+    text { font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace; }
+    .band-label { font-size: 11px; letter-spacing: 0.08em; fill: #5b6572; }
+    .node-box { fill: #ffffff; stroke: #d3d9df; stroke-width: 1.25; }
+    .node-title { font-size: 13px; font-weight: 600; fill: #1c222b; }
+    .node-caption { font-size: 10px; fill: #5b6572; }
+    .trace-halo { stroke: #ffffff; stroke-width: 5; fill: none; }
+    .trace-solid { stroke: #7e93a3; stroke-width: 1.6; fill: none; }
+    .trace-dashed { stroke: #7e93a3; stroke-width: 1.4; stroke-dasharray: 4 3; fill: none; }
+    .trace-dotted { stroke: #7e93a3; stroke-width: 1.2; stroke-dasharray: 1.5 3; fill: none; opacity: 0.75; }
+    .trace-primary { stroke: #1f8f7f; stroke-width: 2.6; fill: none; }
+    .trace-primary-halo { stroke: #ffffff; stroke-width: 6; fill: none; }
+    .edge-label { font-size: 9.5px; fill: #5b6572; }
+    .edge-label-bg { fill: #ffffff; opacity: 0.9; }
+    .legend-h { font-size: 11px; letter-spacing: 0.1em; fill: #5b6572; font-weight: 600; }
+    .legend-row { font-size: 12.5px; fill: #1c222b; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  </style>
+
+  <rect x="0" y="0" width="1240" height="900" fill="#eef1f4" />
+
+  <!-- band backgrounds -->
+  <rect x="10" y="46" width="1220" height="108" rx="8" fill="#e4e8ec" />
+  <rect x="10" y="186" width="1220" height="118" rx="8" fill="#e4e8ec" />
+  <rect x="10" y="326" width="1220" height="118" rx="8" fill="#e4e8ec" />
+  <rect x="10" y="466" width="1220" height="118" rx="8" fill="#e4e8ec" />
+
+  <text class="band-label" x="26" y="62">ENTRENAMIENTO OFFLINE · PYTHON</text>
+  <text class="band-label" x="26" y="202">INFRAESTRUCTURA CORE</text>
+  <text class="band-label" x="26" y="342">SERVING + MONITOREO</text>
+  <text class="band-label" x="26" y="482">PRODUCTO</text>
+  <text class="band-label" x="26" y="608">CLIENTE</text>
+
+  <!-- connectors -->
+  <path class="trace-halo" d="M180,110 L200,110" />
+  <path class="trace-solid" d="M180,110 L200,110" marker-end="url(#arrow)" />
+
+  <path class="trace-halo" d="M300,144 L300,216" />
+  <path class="trace-solid" d="M300,144 L300,216" marker-end="url(#arrow)" />
+  <rect class="edge-label-bg" x="304" y="170" width="86" height="14" />
+  <text class="edge-label" x="306" y="181">escribe tablas</text>
+
+  <path class="trace-halo" d="M300,294 L300,356" />
+  <path class="trace-dashed" d="M300,294 L300,356" marker-end="url(#arrow)" />
+  <rect class="edge-label-bg" x="304" y="315" width="60" height="14" />
+  <text class="edge-label" x="306" y="326">lee</text>
+
+  <path class="trace-halo" d="M400,235 L520,235" />
+  <path class="trace-dotted" d="M400,235 L520,235" />
+
+  <path class="trace-halo" d="M370,294 L370,320 L870,320 L870,294" />
+  <path class="trace-dotted" d="M370,294 L370,320 L870,320 L870,294" />
+
+  <path class="trace-halo" d="M1020,255 L1060,255" />
+  <path class="trace-dotted" d="M1020,255 L1060,255" />
+
+  <path class="trace-halo" d="M870,216 L870,180 L700,180 L700,144" />
+  <path class="trace-dashed" d="M870,216 L870,180 L700,180 L700,144" marker-end="url(#arrow)" />
+  <rect class="edge-label-bg" x="730" y="195" width="140" height="14" />
+  <text class="edge-label" x="732" y="206">features punto-en-tiempo</text>
+
+  <path class="trace-halo" d="M620,144 L620,216" />
+  <path class="trace-solid" d="M620,144 L620,216" marker-end="url(#arrow)" />
+  <rect class="edge-label-bg" x="624" y="170" width="94" height="14" />
+  <text class="edge-label" x="626" y="181">run + registro</text>
+
+  <path class="trace-halo" d="M720,110 L840,110" />
+  <path class="trace-solid" d="M720,110 L840,110" marker-end="url(#arrow)" />
+
+  <path class="trace-halo" d="M860,144 L860,150 L780,150 L780,375 L720,375" />
+  <path class="trace-dashed" d="M860,144 L860,150 L780,150 L780,375 L720,375" marker-end="url(#arrow)" />
+  <rect class="edge-label-bg" x="724" y="230" width="112" height="14" />
+  <text class="edge-label" x="726" y="241">volumen .onnx</text>
+
+  <path class="trace-halo" d="M620,294 L620,356" />
+  <path class="trace-dashed" d="M620,356 L620,294" marker-end="url(#arrow)" />
+  <rect class="edge-label-bg" x="624" y="315" width="128" height="14" />
+  <text class="edge-label" x="626" y="326">consulta versión</text>
+
+  <path class="trace-halo" d="M560,356 L400,255" />
+  <path class="trace-solid" d="M560,356 L400,255" marker-end="url(#arrow)" />
+  <rect class="edge-label-bg" x="452" y="296" width="98" height="14" />
+  <text class="edge-label" x="454" y="307">prediction_logs</text>
+
+  <path class="trace-halo" d="M720,415 L840,415" />
+  <path class="trace-dashed" d="M720,415 L840,415" marker-end="url(#arrow)" />
+  <rect class="edge-label-bg" x="726" y="424" width="110" height="14" />
+  <text class="edge-label" x="728" y="435">scrape /metrics</text>
+
+  <path class="trace-primary-halo" d="M620,496 L620,434" />
+  <path class="trace-primary" d="M620,496 L620,434" marker-end="url(#arrow-primary)" />
+  <rect class="edge-label-bg" x="500" y="450" width="112" height="14" />
+  <text class="edge-label" x="502" y="461">proxy /predict</text>
+
+  <path class="trace-halo" d="M500,510 L450,510 L450,255 L400,255" />
+  <path class="trace-dashed" d="M500,510 L450,510 L450,255 L400,255" marker-end="url(#arrow)" />
+
+  <path class="trace-halo" d="M500,525 L465,525 L465,395 L400,395" />
+  <path class="trace-dashed" d="M500,525 L465,525 L465,395 L400,395" marker-end="url(#arrow)" />
+
+  <path class="trace-halo" d="M740,510 L780,510 L780,255 L720,255" />
+  <path class="trace-dashed" d="M740,510 L780,510 L780,255 L720,255" marker-end="url(#arrow)" />
+
+  <path class="trace-halo" d="M740,525 L800,525 L800,395 L840,395" />
+  <path class="trace-dashed" d="M740,525 L800,525 L800,395 L840,395" marker-end="url(#arrow)" />
+
+  <path class="trace-primary-halo" d="M620,614 L620,574" />
+  <path class="trace-primary" d="M620,614 L620,574" marker-end="url(#arrow-primary)" />
+
+  <!-- nodes -->
+  <g>
+    <rect class="node-box" x="20" y="76" width="160" height="68" rx="6" />
+    <rect x="20" y="76" width="5" height="68" fill="#b8842a" />
+    <text class="node-title" x="36" y="104">pe_properties</text>
+    <text class="node-caption" x="36" y="120">dataset crudo</text>
+  </g>
+
+  <g>
+    <rect class="node-box" x="200" y="76" width="200" height="68" rx="6" />
+    <rect x="200" y="76" width="5" height="68" fill="#b8842a" />
+    <text class="node-title" x="216" y="102">Prep de datos</text>
+    <text class="node-caption" x="216" y="118">clean_arequipa.py</text>
+    <text class="node-caption" x="216" y="131">build_features.py</text>
+  </g>
+
+  <g>
+    <rect class="node-box" x="520" y="76" width="200" height="68" rx="6" />
+    <rect x="520" y="76" width="5" height="68" fill="#b8842a" />
+    <text class="node-title" x="536" y="102">Entrenamiento</text>
+    <text class="node-caption" x="536" y="118">train.py</text>
+    <text class="node-caption" x="536" y="131">XGBoost + CV</text>
+  </g>
+
+  <g>
+    <rect class="node-box" x="840" y="76" width="180" height="68" rx="6" />
+    <rect x="840" y="76" width="5" height="68" fill="#b8842a" />
+    <text class="node-title" x="856" y="102">Export ONNX</text>
+    <text class="node-caption" x="856" y="118">export_onnx.py</text>
+  </g>
+
+  <g>
+    <rect class="node-box" x="200" y="216" width="200" height="78" rx="6" />
+    <rect x="200" y="216" width="5" height="78" fill="#6f6a9c" />
+    <text class="node-title" x="216" y="242">Postgres</text>
+    <text class="node-caption" x="216" y="258">feature_metadata</text>
+    <text class="node-caption" x="216" y="271">features · logs</text>
+    <text class="node-caption" x="216" y="284">mlflow (backend)</text>
+  </g>
+
+  <g>
+    <rect class="node-box" x="520" y="216" width="200" height="78" rx="6" />
+    <rect x="520" y="216" width="5" height="78" fill="#6f6a9c" />
+    <text class="node-title" x="536" y="245">MLflow</text>
+    <text class="node-caption" x="536" y="261">Tracking +</text>
+    <text class="node-caption" x="536" y="274">Model Registry</text>
+  </g>
+
+  <g>
+    <rect class="node-box" x="840" y="216" width="180" height="78" rx="6" />
+    <rect x="840" y="216" width="5" height="78" fill="#6f6a9c" />
+    <text class="node-title" x="856" y="245">Feast</text>
+    <text class="node-caption" x="856" y="261">Feature store</text>
+    <text class="node-caption" x="856" y="274">offline + online</text>
+  </g>
+
+  <g>
+    <rect class="node-box" x="1060" y="216" width="140" height="78" rx="6" />
+    <rect x="1060" y="216" width="5" height="78" fill="#6f6a9c" />
+    <text class="node-title" x="1076" y="245">Redis</text>
+    <text class="node-caption" x="1076" y="261">Online store</text>
+  </g>
+
+  <g>
+    <rect class="node-box" x="200" y="356" width="200" height="78" rx="6" />
+    <rect x="200" y="356" width="5" height="78" fill="#af5a3c" />
+    <text class="node-title" x="216" y="385">Evidently</text>
+    <text class="node-caption" x="216" y="401">drift_report.py</text>
+    <text class="node-caption" x="216" y="414">reportes HTML</text>
+  </g>
+
+  <g>
+    <rect class="node-box" x="520" y="356" width="200" height="78" rx="6" />
+    <rect x="520" y="356" width="5" height="78" fill="#1f8f7f" />
+    <text class="node-title" x="536" y="382">API de inferencia</text>
+    <text class="node-caption" x="536" y="398">Node.js · Fastify</text>
+    <text class="node-caption" x="536" y="411">ONNX Runtime</text>
+  </g>
+
+  <g>
+    <rect class="node-box" x="840" y="356" width="180" height="78" rx="6" />
+    <rect x="840" y="356" width="5" height="78" fill="#af5a3c" />
+    <text class="node-title" x="856" y="385">Prometheus</text>
+    <text class="node-caption" x="856" y="401">Métricas de servicio</text>
+  </g>
+
+  <g>
+    <rect class="node-box" x="500" y="496" width="240" height="78" rx="6" />
+    <rect x="500" y="496" width="5" height="78" fill="#1f8f7f" />
+    <text class="node-title" x="516" y="525">Dashboard</text>
+    <text class="node-caption" x="516" y="541">Next.js — App Router</text>
+    <text class="node-caption" x="516" y="554">todo el fetching es server-side</text>
+  </g>
+
+  <g>
+    <rect class="node-box" x="530" y="614" width="180" height="64" rx="6" />
+    <rect x="530" y="614" width="5" height="64" fill="#1f8f7f" />
+    <text class="node-title" x="546" y="640">Jurado / Usuario</text>
+    <text class="node-caption" x="546" y="656">navegador</text>
+  </g>
+
+  <!-- legend -->
+  <rect x="10" y="700" width="1220" height="190" rx="8" fill="#ffffff" stroke="#d3d9df" stroke-width="1.25" />
+
+  <text class="legend-h" x="30" y="726">DOMINIOS</text>
+  <rect x="30" y="738" width="12" height="12" rx="3" fill="#b8842a" /><text class="legend-row" x="50" y="748">Python — datos y entrenamiento (offline)</text>
+  <rect x="30" y="760" width="12" height="12" rx="3" fill="#6f6a9c" /><text class="legend-row" x="50" y="770">Infraestructura — almacenamiento y registro</text>
+  <rect x="30" y="782" width="12" height="12" rx="3" fill="#1f8f7f" /><text class="legend-row" x="50" y="792">Node.js / TypeScript — serving y producto</text>
+  <rect x="30" y="804" width="12" height="12" rx="3" fill="#af5a3c" /><text class="legend-row" x="50" y="814">Monitoreo — métricas y drift</text>
+
+  <text class="legend-h" x="380" y="726">TIPO DE CONEXIÓN</text>
+  <line x1="380" y1="742" x2="408" y2="742" stroke="#7e93a3" stroke-width="1.6" /><text class="legend-row" x="416" y="746">Escritura / flujo de datos</text>
+  <line x1="380" y1="764" x2="408" y2="764" stroke="#7e93a3" stroke-width="1.4" stroke-dasharray="4 3" /><text class="legend-row" x="416" y="768">Lectura / consulta</text>
+  <line x1="380" y1="786" x2="408" y2="786" stroke="#7e93a3" stroke-width="1.2" stroke-dasharray="1.5 3" opacity="0.75" /><text class="legend-row" x="416" y="790">Integración de infraestructura</text>
+  <line x1="380" y1="808" x2="408" y2="808" stroke="#1f8f7f" stroke-width="2.6" /><text class="legend-row" x="416" y="812">Camino de request en vivo</text>
+
+  <text class="legend-h" x="730" y="726">DECISIÓN CLAVE</text>
+  <text class="legend-row" x="730" y="748">El navegador solo habla con el Dashboard — nunca directo con</text>
+  <text class="legend-row" x="730" y="766">la API, MLflow, Prometheus o Postgres. Todo ese fetching pasa</text>
+  <text class="legend-row" x="730" y="784">por el backend de Next.js server-side. Evita CORS y mantiene</text>
+  <text class="legend-row" x="730" y="802">un único punto de entrada.</text>
+</svg>
