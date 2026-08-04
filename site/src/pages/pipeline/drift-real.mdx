@@ -1,0 +1,80 @@
+---
+layout: ../../layouts/PipelineLayout.astro
+title: "Pipeline · Drift real"
+description: 2020 contra el mercado actual de Arequipa — la receta ya diseñada, y lo que quedó pendiente por tiempo.
+---
+
+import DiagramFigure from "../../components/DiagramFigure.astro";
+import ArtifactList from "../../components/ArtifactList.astro";
+
+<p class="eyebrow">Pipeline · 10 de 10</p>
+
+# Drift real
+
+El argumento central del proyecto es que el dataset de 2020 no es una
+limitación a esconder: es el punto de partida para un drift **real**, no
+simulado. La idea — comparar el modelo entrenado con datos de 2020
+contra un lote pequeño de anuncios reales y actuales de Arequipa (30-50,
+recolectados a mano de un portal inmobiliario), inyectarlos como
+"tráfico de producción", generar el reporte de drift correspondiente, y
+disparar un reentrenamiento que registre una nueva versión del modelo,
+visible en el dashboard.
+
+## Estado: no ejecutado, por falta de tiempo — no de diseño
+
+La recolección manual del lote real no se hizo en la sesión de trabajo
+de este proyecto. En vez de simular tráfico para tener "algo que
+mostrar", esa parte queda documentada como una receta pendiente — la
+misma honestidad que llevó a comparar contra datos reales en primer
+lugar en vez de inventar drift artificial.
+
+## La receta, ya diseñada
+
+1. Adaptar el lote nuevo al esquema crudo que espera `clean_arequipa.py`
+   — **reusando las mismas funciones de limpieza**, no reimplementando la
+   lógica. Es exactamente el caso que motivó diseñar ese script como
+   funciones reutilizables desde el principio.
+2. Decidir qué hacer con los filtros de outliers fiteados sobre la
+   población de entrenamiento (6,811 filas) — recalcularlos sobre un
+   lote de 30-50 filas daría umbrales arbitrarios; la alternativa es
+   reusar los ya fiteados, o prescindir del filtro con el trade-off
+   documentado.
+3. Inyectar como tráfico real: llamar al endpoint `POST /predict` de la
+   API por cada anuncio del lote — no un mecanismo de ingesta aparte.
+   Puebla `prediction_logs` con la distribución real de hoy.
+4. Comparar la predicción del modelo contra el precio real pedido — un
+   análisis aparte, no un cambio al esquema de `prediction_logs` (esa
+   tabla es trazabilidad de servicio, no evaluación).
+5. Correr `drift_report.py` sin cambios de código — ya compara
+   `features` contra `prediction_logs`, que ahora tendría tráfico real
+   de hoy en vez de las llamadas de prueba usadas hasta ahora.
+6. Fusionar el lote limpio con `listings`/`features`, re-materializar en
+   Feast (`feast materialize-incremental`, no un rango completo), y
+   reentrenar — nueva versión en el Model Registry de MLflow.
+7. Confirmar que la nueva versión aparece sola en el dashboard: la
+   página de Modelos ya lee "la versión más reciente registrada" de
+   forma dinámica vía la API de MLflow, sin cambios necesarios ahí.
+
+Nada de esta receta es especulativa — cada pieza que toca (el endpoint,
+`drift_report.py`, la página de Modelos) ya está construida y probada en
+las etapas anteriores. Lo único que falta es el dato de entrada.
+
+<DiagramFigure
+  src="/architecture.svg"
+  alt="Diagrama de arquitectura completo del pipeline, sin recortar"
+  caption="El sistema completo, de punta a punta — las 9 paradas anteriores de este recorrido. Solo falta correr la receta de arriba con datos de 2026."
+  wide
+/>
+
+## Artefactos de este paso
+
+Ninguno nuevo — esta receta reusa, sin cambios de código, lo que ya
+construyeron los 9 pasos anteriores:
+
+<ArtifactList items={[
+  { name: "ml/data_prep/clean_arequipa.py", type: "Reusado", description: "Mismas funciones de limpieza, aplicadas al lote nuevo de 2026." },
+  { name: "POST /predict", type: "Reusado", description: "Inyecta el lote como tráfico real, poblando prediction_logs." },
+  { name: "ml/monitoring/drift_report.py", type: "Reusado", description: "Corre sin cambios — ahora compara contra tráfico real de 2026, no pruebas sintéticas." },
+  { name: "feast materialize-incremental", type: "Reusado", description: "Empuja solo lo nuevo al online store, sin rehacer el rango completo." },
+  { name: "ml/training/train.py", type: "Reusado", description: "Reentrena sobre listings+features fusionados — nueva versión en el Model Registry." },
+]} />

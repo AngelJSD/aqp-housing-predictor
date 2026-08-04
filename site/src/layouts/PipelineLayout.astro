@@ -1,0 +1,127 @@
+---
+import BaseLayout from "./BaseLayout.astro";
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const stages = [
+  { href: "/pipeline/datos", label: "1. Datos crudos" },
+  { href: "/pipeline/features", label: "2. Features" },
+  { href: "/pipeline/baseline", label: "3. Baseline model" },
+  { href: "/pipeline/infra-core", label: "4. Infra core" },
+  { href: "/pipeline/feature-store", label: "5. Feature store" },
+  { href: "/pipeline/modelo-definitivo", label: "6. Modelo definitivo" },
+  { href: "/pipeline/api-inferencia", label: "7. API de inferencia" },
+  { href: "/pipeline/monitoreo", label: "8. Monitoreo" },
+  { href: "/pipeline/dashboard", label: "9. Dashboard" },
+  { href: "/pipeline/drift-real", label: "10. Drift real" },
+];
+
+const { title, description } = Astro.props;
+const path = Astro.url.pathname;
+const currentIndex = stages.findIndex((s) => s.href === path);
+const prev = currentIndex > 0 ? stages[currentIndex - 1] : null;
+const next =
+  currentIndex >= 0 && currentIndex < stages.length - 1
+    ? stages[currentIndex + 1]
+    : null;
+---
+
+<BaseLayout title={title} description={description}>
+  <div class="container pipeline-layout">
+    <ol class="stepper">
+      {
+        stages.map((s, i) => (
+          <li aria-current={s.href === path ? "step" : undefined}>
+            <a href={s.href}>
+              <span class="num">{i + 1}</span>
+              {s.label.replace(/^\d+\.\s*/, "")}
+            </a>
+          </li>
+        ))
+      }
+    </ol>
+
+    <article class="prose">
+      <slot />
+    </article>
+
+    <nav class="pager">
+      {prev ? <a href={prev.href}>← {prev.label}</a> : <span />}
+      {next ? <a href={next.href}>{next.label} →</a> : <span />}
+    </nav>
+  </div>
+</BaseLayout>
+
+<style>
+  .pipeline-layout {
+    padding: 2.5rem 1.5rem 1rem;
+  }
+
+  .stepper {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    list-style: none;
+    padding: 0;
+    margin: 0 0 2.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+  }
+
+  .stepper li a {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--text-muted);
+  }
+
+  .stepper li a:hover {
+    text-decoration: none;
+    border-color: var(--accent-node);
+    color: var(--text);
+  }
+
+  .stepper li[aria-current="step"] a {
+    color: var(--accent-node);
+    border-color: var(--accent-node);
+    background: var(--accent-node-soft);
+  }
+
+  .num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.1rem;
+    height: 1.1rem;
+    border-radius: 50%;
+    background: var(--border);
+    color: var(--text);
+    font-size: 0.68rem;
+  }
+
+  .stepper li[aria-current="step"] .num {
+    background: var(--accent-node);
+    color: #fff;
+  }
+
+  .prose {
+    max-width: var(--max-width);
+  }
+
+  .pager {
+    display: flex;
+    justify-content: space-between;
+    max-width: var(--max-width);
+    margin: 3rem 0 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+  }
+</style>

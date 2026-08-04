@@ -1,0 +1,105 @@
+---
+layout: ../../layouts/PipelineLayout.astro
+title: "Pipeline · Feature store"
+description: Feast — offline store en Postgres, online store en Redis, y point-in-time correctness real.
+---
+
+import DiagramFigure from "../../components/DiagramFigure.astro";
+import DecisionCard from "../../components/DecisionCard.astro";
+import ArtifactList from "../../components/ArtifactList.astro";
+
+<p class="eyebrow">Pipeline · 5 de 10</p>
+
+# Feature store
+
+<DiagramFigure
+  src="/diagrams/zoom-feature-store.svg"
+  alt="Zoom sobre Feast y Redis, con el edge de materialize entre ambos"
+  caption="Feast y Redis, protagonistas de este paso — Postgres ya está ahí desde la infraestructura, se usa como offline store sin necesitar un edge propio en el diagrama."
+/>
+
+<DecisionCard title="Feast" tag="Framework" accent="infra">
+Feature store de código abierto: separa "valores de features" de "cómo se
+calculan", con offline store (Postgres, para entrenamiento) y online store
+(Redis, para lecturas de baja latencia) como dos vistas del mismo dato.
+Elegido sobre armar esto a mano porque resuelve point-in-time correctness
+— el problema real de "qué valor tenía esta feature en el momento exacto
+de este anuncio" — sin reinventar esa lógica.
+</DecisionCard>
+
+Feast es la capa que separa "valores de features" de "cómo se calculan" —
+con dos vistas del mismo dato: un **offline store** (Postgres) para
+entrenamiento, y un **online store** (Redis) para consultas de baja
+latencia en producción.
+
+## Entity, source y feature view
+
+- **Entity**: `listing`, con `id` como join key — reusa la columna tal
+  cual, sin una abstracción extra.
+- **Source**: la tabla `features` en Postgres, con `timestamp_field =
+  created_on`. Se eligió `created_on` (no un timestamp sintético) porque
+  ya es el campo canónico usado en el resto del proyecto — el orden de
+  deduplicación, el split Out-of-Time del baseline — y porque, verificado,
+  tiene cero nulos y coincide exactamente con `start_date` en las 6,811
+  filas.
+- **FeatureView**: `arequipa_listings_features`, con las mismas 5 features
+  ya documentadas en el catálogo de metadata — ni una más, ni una menos.
+  `ttl=0`: cada fila es el snapshot propio de un listing en su `id`, no
+  un agregado que decae con el tiempo, así que no hay una ventana natural
+  que expire.
+
+<h3 id="catálogo">El catálogo completo</h3>
+
+`ml/feature_metadata.csv`, fila por fila — lo que la `FeatureView` declara
+y lo que el catálogo humano-legible documenta son exactamente lo mismo:
+
+| Feature | Tipo | Columna(s) origen | Transformación |
+|---|---|---|---|
+| `district` | string | `l4` | Renombrado desde `l4`, sin otra transformación |
+| `surface` | float64 | `surface_total`, `surface_covered` | `Coalesce(surface_total, surface_covered)` |
+| `property_type` | string | `property_type` | Passthrough directo, sin nulos en el subset |
+| `operation_type` | string | `operation_type` | Passthrough directo, sin nulos en el subset |
+| `district_avg_price_per_m2` | float64 | `price_usd`, `surface`, `operation_type`, `l4` | Media leave-one-out suavizada (`k=10`) por `(operation_type, l4)` |
+
+Las 5 apuntan a la misma feature view (`arequipa_listings_features`),
+mismo owner (`angeljsd`), misma versión (`1`), creadas el `2026-07-27` —
+un catálogo chico, pero completo.
+
+## Materializar: de Postgres a Redis
+
+```bash
+feast materialize 2019-01-01T00:00:00 2020-04-01T00:00:00
+```
+
+empuja los valores del offline store al online store. `redis-cli DBSIZE`
+da **6,811** — coincide exactamente con las filas de la tabla `features`.
+
+## Point-in-time correctness, verificada de verdad
+
+No alcanza con que `feast apply` corra sin errores — eso no toca los
+stores si no hay tráfico. Se comparó el valor de un `id` conocido en las
+tres fuentes: `features.parquet` (origen), `get_historical_features`
+(offline store) y el feature server real vía `/get-online-features`
+(online store). Las tres coinciden exactamente, incluyendo el
+`event_timestamp` correcto por feature.
+
+## Por qué no se consulta en vivo durante el serving
+
+El diseño original contemplaba que la API de inferencia consultara Feast
+en tiempo real por cada predicción. En la práctica, la única feature que
+lo hubiera justificado (`district_avg_price_per_m2`, para una propiedad
+nueva sin `id`) resultó no aportar nada más allá de `district` como
+categórica — y se eliminó del modelo (la historia completa está en
+[Modelo definitivo](/pipeline/modelo-definitivo)). El resto de las features las
+tipea el usuario directo. El feature store queda demostrado de punta a
+punta acá, como pieza real del sistema — no como atrezzo sin una
+necesidad de producto detrás.
+
+## Artefactos de este paso
+
+<ArtifactList items={[
+  { name: "feature_repo/features.py", type: "Código", description: "Entity listing, PostgreSQLSource sobre la tabla features, FeatureView arequipa_listings_features (ttl=0)." },
+  { name: "feature_repo/entrypoint.sh", type: "Infra", description: "Corre feast apply contra el repo montado y luego arranca feast serve — automático en cada docker compose up." },
+  { name: "feature_repo/data/registry.db", type: "Registry", description: "Metadata interna de Feast (gitignored, regenerable con feast apply)." },
+  { name: "Redis — 6,811 keys", type: "Online store", description: "Poblado por feast materialize — un valor por listing, coincide exacto con la tabla features." },
+]} />

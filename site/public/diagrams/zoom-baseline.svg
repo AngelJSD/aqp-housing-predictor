@@ -1,0 +1,33 @@
+<svg viewBox="0 0 570 140" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Zoom sobre Prep de datos y Entrenamiento, sin infraestructura de por medio">
+  <style>
+    text { font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace; }
+    .band-label { font-size: 11px; letter-spacing: 0.08em; fill: #5b6572; }
+    .node-box { fill: #ffffff; stroke: #d3d9df; stroke-width: 1.25; }
+    .node-title { font-size: 13px; font-weight: 600; fill: #1c222b; }
+    .node-caption { font-size: 10px; fill: #5b6572; }
+    .gap-note { font-size: 9.5px; fill: #8b96a3; font-style: italic; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  </style>
+
+  <rect x="0" y="0" width="570" height="140" fill="#ffffff" />
+
+  <g transform="translate(-180,-32)">
+    <rect x="160" y="46" width="600" height="108" fill="#e4e8ec" />
+    <text class="band-label" x="200" y="62">ENTRENAMIENTO OFFLINE · PYTHON</text>
+
+    <rect class="node-box" x="200" y="76" width="200" height="68" rx="6" />
+    <rect x="200" y="76" width="5" height="68" fill="#b8842a" />
+    <text class="node-title" x="216" y="102">Prep de datos</text>
+    <text class="node-caption" x="216" y="118">clean_arequipa.py</text>
+    <text class="node-caption" x="216" y="131">build_features.py</text>
+
+    <rect class="node-box" x="520" y="76" width="200" height="68" rx="6" />
+    <rect x="520" y="76" width="5" height="68" fill="#b8842a" />
+    <text class="node-title" x="536" y="102">Entrenamiento</text>
+    <text class="node-caption" x="536" y="118">train.py</text>
+    <text class="node-caption" x="536" y="131">XGBoost + CV</text>
+
+    <text class="gap-note" x="410" y="106" text-anchor="middle">features.parquet</text>
+    <text class="gap-note" x="410" y="118" text-anchor="middle">(directo, sin flecha</text>
+    <text class="gap-note" x="410" y="130" text-anchor="middle">formal todavía)</text>
+  </g>
+</svg>

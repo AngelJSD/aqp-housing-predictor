@@ -1,0 +1,44 @@
+<svg viewBox="0 0 1050 150" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Zoom sobre la banda de infraestructura core: Postgres, MLflow, Feast, Redis">
+  <style>
+    text { font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace; }
+    .band-label { font-size: 11px; letter-spacing: 0.08em; fill: #5b6572; }
+    .node-box { fill: #ffffff; stroke: #d3d9df; stroke-width: 1.25; }
+    .node-title { font-size: 13px; font-weight: 600; fill: #1c222b; }
+    .node-caption { font-size: 10px; fill: #5b6572; }
+    .trace-dotted { stroke: #7e93a3; stroke-width: 1.2; stroke-dasharray: 1.5 3; fill: none; opacity: 0.75; }
+  </style>
+
+  <rect x="0" y="0" width="1050" height="150" fill="#ffffff" />
+
+  <g transform="translate(-180,-176)">
+    <rect x="160" y="186" width="1060" height="118" fill="#e4e8ec" />
+    <text class="band-label" x="200" y="202">INFRAESTRUCTURA CORE</text>
+
+    <path class="trace-dotted" d="M400,235 L520,235" />
+    <path class="trace-dotted" d="M1020,255 L1060,255" />
+
+    <rect class="node-box" x="200" y="216" width="200" height="78" rx="6" />
+    <rect x="200" y="216" width="5" height="78" fill="#6f6a9c" />
+    <text class="node-title" x="216" y="242">Postgres</text>
+    <text class="node-caption" x="216" y="258">feature_metadata</text>
+    <text class="node-caption" x="216" y="271">features · logs</text>
+    <text class="node-caption" x="216" y="284">mlflow (backend)</text>
+
+    <rect class="node-box" x="520" y="216" width="200" height="78" rx="6" />
+    <rect x="520" y="216" width="5" height="78" fill="#6f6a9c" />
+    <text class="node-title" x="536" y="245">MLflow</text>
+    <text class="node-caption" x="536" y="261">Tracking +</text>
+    <text class="node-caption" x="536" y="274">Model Registry</text>
+
+    <rect class="node-box" x="840" y="216" width="180" height="78" rx="6" />
+    <rect x="840" y="216" width="5" height="78" fill="#6f6a9c" />
+    <text class="node-title" x="856" y="245">Feast</text>
+    <text class="node-caption" x="856" y="261">Feature store</text>
+    <text class="node-caption" x="856" y="274">offline + online</text>
+
+    <rect class="node-box" x="1060" y="216" width="140" height="78" rx="6" />
+    <rect x="1060" y="216" width="5" height="78" fill="#6f6a9c" />
+    <text class="node-title" x="1076" y="245">Redis</text>
+    <text class="node-caption" x="1076" y="261">Online store</text>
+  </g>
+</svg>

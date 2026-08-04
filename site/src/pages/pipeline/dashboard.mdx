@@ -1,0 +1,82 @@
+---
+layout: ../../layouts/PipelineLayout.astro
+title: "Pipeline · Dashboard"
+description: Next.js como único punto de entrada del navegador — las 5 secciones, y los gotchas reales de red en Docker.
+---
+
+import DiagramFigure from "../../components/DiagramFigure.astro";
+import DecisionCard from "../../components/DecisionCard.astro";
+import ArtifactList from "../../components/ArtifactList.astro";
+
+<p class="eyebrow">Pipeline · 9 de 10</p>
+
+# Dashboard
+
+<DiagramFigure
+  src="/diagrams/zoom-dashboard.svg"
+  alt="Zoom sobre el Dashboard consultando a la API, Postgres, MLflow, Prometheus y Evidently"
+  caption="El último nodo del sistema es el que más conexiones tiene — habla con todos los demás. El navegador solo habla con él (ver Arquitectura)."
+/>
+
+Con todas las piezas ya sirviendo tráfico por separado, el dashboard las
+junta en un solo lugar para el usuario final. La decisión de arquitectura
+que lo hace posible — el navegador **nunca** habla directo con la API, con
+MLflow, con Prometheus o con Postgres, todo pasa server-side por Next.js —
+ya está explicada en detalle en [Arquitectura](/arquitectura#decisión);
+acá el foco es qué se construyó con esa regla ya decidida.
+
+<DecisionCard title="Next.js — App Router" tag="Framework" accent="node">
+Server Components y Route Handlers para cada fuente
+(`lib/{mlflow,prometheus,db}.ts`), sin exponer ninguna variable
+`NEXT_PUBLIC_*` — todo el fetching queda server-only por diseño, no por
+disciplina. Solo el proxy de `/predict` y el servido de HTML de Evidently
+son Route Handlers reales, porque necesitan ser invocables desde el
+navegador o devolver contenido no-JSON.
+</DecisionCard>
+
+Cinco secciones: **Predictor** (formulario que llama a `/api/predict`,
+que a su vez llama server-side a la API real), **Modelos** (versiones y
+métricas desde MLflow), **Monitoreo** (requests y latencia desde
+Prometheus), **Drift** (los reportes HTML de Evidently), y **Catálogo de
+features** (la tabla `feature_metadata` de Postgres, consultada directo —
+mismo criterio que Feast y la API: cada servicio se conecta directo a
+Postgres para lo que necesita, sin una capa de indirección extra).
+
+<DecisionCard title="Recharts" tag="Librería" accent="node">
+Único componente cliente del dashboard (`"use client"`) — Recharts
+necesita el DOM para dibujar, así que la sección de Monitoreo es la
+excepción a que todo sea Server Component.
+</DecisionCard>
+
+## Tres bugs reales, ninguno obvio de antemano
+
+**Prerender accidental.** `next build` prerenderiza la página de
+Catálogo en build time por defecto — una query a `pg` no participa del
+heurístico de fetch-cache que usa Next para detectar páginas dinámicas.
+El HTML generado tenía los valores de la DB horneados de forma estática.
+Fix: `export const dynamic = "force-dynamic"`.
+
+**`HOSTNAME` de Docker.** El servidor standalone de Next hace
+`process.env.HOSTNAME || '0.0.0.0'` — pero Docker **siempre** setea
+`HOSTNAME` al ID del contenedor, así que ese fallback nunca se activa
+dentro de un contenedor. El servidor terminaba escuchando solo en la IP
+interna del contenedor (confirmado con `netstat`: `172.21.0.8:3000`, no
+`0.0.0.0:3000`). Fix: `HOSTNAME=0.0.0.0` explícito en el `environment:`
+del servicio.
+
+**`wget localhost` vs. `127.0.0.1`.** Ya con el bind correcto, el
+healthcheck seguía fallando — `wget` en la imagen Alpine resuelve
+`localhost` a `::1` (IPv6) primero, y el servidor solo escucha IPv4.
+Confirmado que `wget http://127.0.0.1:3000/` sí funciona pero
+`wget http://localhost:3000/` no, mismo contenedor. Healthcheck cambiado
+a `127.0.0.1` explícito.
+
+## Artefactos de este paso
+
+<ArtifactList items={[
+  { name: "dashboard/lib/{mlflow,prometheus,db}.ts", type: "Código", description: "Clientes server-side de cada fuente — llamados directo desde Server Components." },
+  { name: "dashboard/app/{page,predictor,models,monitoring,drift,features}", type: "Rutas", description: "Las 6 páginas: Inicio, Predictor, Modelos, Monitoreo, Drift, Catálogo de features." },
+  { name: "dashboard/app/api/predict/route.ts", type: "Ruta API", description: "Proxy server-side a la API de inferencia — nunca llamado directo desde el navegador." },
+  { name: "dashboard/app/api/drift/[operation]/route.ts", type: "Ruta API", description: "Sirve el HTML de Evidently ya generado, 404 limpio si no existe." },
+  { name: "dashboard/Dockerfile", type: "Infra", description: "Build multi-stage, output standalone, HOSTNAME=0.0.0.0 explícito." },
+]} />

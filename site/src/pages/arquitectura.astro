@@ -1,0 +1,168 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import DiagramFigure from "../components/DiagramFigure.astro";
+
+const bandas = [
+  {
+    accent: "python",
+    title: "Entrenamiento offline · Python",
+    body: "Limpieza de datos, ingeniería de features, entrenamiento con XGBoost y export a ONNX. Corre fuera del camino de request en vivo — nada de esto se ejecuta por cada predicción.",
+  },
+  {
+    accent: "infra",
+    title: "Infraestructura core",
+    body: "Postgres (feature_metadata, features, prediction_logs, backend de MLflow), Redis (online store de Feast), MLflow (tracking + registry) y el feature server de Feast.",
+  },
+  {
+    accent: "monitor",
+    title: "Serving + monitoreo",
+    body: "La API de inferencia (Node.js/Fastify + ONNX Runtime) sirve predicciones; Prometheus scrapea sus métricas; Evidently compara la distribución de entrenamiento contra el tráfico reciente.",
+  },
+  {
+    accent: "node",
+    title: "Producto",
+    body: "El dashboard en Next.js — la única pieza con la que habla el navegador. Todo su fetching a las demás capas es server-side.",
+  },
+];
+---
+
+<BaseLayout title="Arquitectura" description="Las 4 bandas del pipeline MLOps y la decisión de arquitectura que las conecta.">
+  <div class="container-wide top">
+    <p class="eyebrow">Sistema</p>
+    <h1>Arquitectura</h1>
+    <p class="lede">
+      El pipeline se organiza en 4 dominios con responsabilidades separadas.
+      El diagrama completo — incluyendo tipos de conexión y el camino de
+      request en vivo — es el mismo <code>architecture.svg</code> que vive en
+      la raíz del repo; acá se explica cada banda y la decisión que las
+      amarra.
+    </p>
+  </div>
+
+  <div class="container-wide">
+    <DiagramFigure
+      src="/architecture.svg"
+      alt="Diagrama de arquitectura completo del pipeline"
+      caption="4 bandas (offline, infraestructura, serving+monitoreo, producto) más el cliente. Verde sólido = camino de request en vivo."
+      wide
+    />
+  </div>
+
+  <div class="container">
+    <h2>Las 4 bandas</h2>
+    <div class="band-grid">
+      {
+        bandas.map((b) => (
+          <div class={`band accent-${b.accent}`}>
+            <h3>{b.title}</h3>
+            <p>{b.body}</p>
+          </div>
+        ))
+      }
+    </div>
+
+    <h2 id="decisión">La decisión clave: todo pasa por el dashboard</h2>
+    <p>
+      El navegador solo le habla al dashboard — nunca directo a la API de
+      inferencia, a MLflow, a Prometheus o a Postgres. Todo ese fetching pasa
+      por el backend de Next.js (Server Components / Route Handlers), usando
+      los nombres de servicio internos de Docker Compose.
+    </p>
+    <p>
+      Esto resuelve dos problemas con una sola regla: evita tener que
+      configurar CORS en servicios que no lo necesitan por ningún otro
+      motivo, y separa limpiamente "código que corre en el servidor, con
+      nombres internos de red" de "código que corre en el navegador, con
+      puertos mapeados al host" — un gotcha real que ya había mordido al
+      proyecto antes en la integración de Feast/MLflow desde los scripts de
+      entrenamiento. Un único punto de entrada, sin esa ambigüedad.
+    </p>
+
+    <h2>Por qué Python + Node, y no un solo lenguaje</h2>
+    <p>
+      En vez de forzar todo el pipeline a un solo lenguaje, el trabajo se
+      divide según dónde cada tecnología aporta más:
+    </p>
+    <ul>
+      <li>
+        <strong>Python</strong> para entrenamiento, definición/materialización
+        de features en el feature store y reportes de drift — el ecosistema
+        (scikit-learn, XGBoost, el SDK de Feast, Evidently) no tiene
+        equivalente maduro en Node.
+      </li>
+      <li>
+        <strong>Node.js / TypeScript</strong> para la API de inferencia
+        (sirviendo el modelo exportado a ONNX) y el dashboard — las piezas
+        con las que interactúa el usuario final, donde un stack de
+        producción más pulido importa más.
+      </li>
+    </ul>
+    <p>
+      El split es en sí mismo parte del argumento técnico: no es "usé lo que
+      ya sabía", sino una decisión defendible sobre dónde vive cada
+      responsabilidad del sistema.
+    </p>
+  </div>
+</BaseLayout>
+
+<style>
+  .top {
+    padding: 3rem 1.5rem 1rem;
+  }
+
+  .band-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    margin: 1.25rem 0 2rem;
+  }
+
+  .band {
+    position: relative;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.1rem 1.1rem 1.35rem;
+  }
+
+  .band::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.8rem;
+    bottom: 0.8rem;
+    width: 4px;
+    border-radius: 2px;
+    background: var(--accent-node);
+  }
+
+  .band.accent-python::before {
+    background: var(--accent-python);
+  }
+  .band.accent-infra::before {
+    background: var(--accent-infra);
+  }
+  .band.accent-node::before {
+    background: var(--accent-node);
+  }
+  .band.accent-monitor::before {
+    background: var(--accent-monitor);
+  }
+
+  .band h3 {
+    margin: 0 0 0.4rem;
+    font-size: 1rem;
+  }
+
+  .band p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.92rem;
+  }
+
+  @media (max-width: 640px) {
+    .band-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

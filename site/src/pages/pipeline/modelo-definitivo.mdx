@@ -1,0 +1,89 @@
+---
+layout: ../../layouts/PipelineLayout.astro
+title: "Pipeline · Modelo definitivo"
+description: Leyendo desde Feast, el leakage real que rompió el modelo, y el registro en MLflow + export a ONNX.
+---
+
+import DiagramFigure from "../../components/DiagramFigure.astro";
+import DecisionCard from "../../components/DecisionCard.astro";
+import ArtifactList from "../../components/ArtifactList.astro";
+
+<p class="eyebrow">Pipeline · 6 de 10</p>
+
+# Modelo definitivo
+
+<DiagramFigure
+  src="/diagrams/zoom-definitivo.svg"
+  alt="Zoom sobre Entrenamiento y Export ONNX, leyendo desde Feast y registrando en MLflow"
+  caption="Con la infraestructura y el feature store ya construidos, Entrenamiento deja de ser un script aislado: lee de Feast, registra en MLflow, exporta a ONNX."
+/>
+
+Con Feast y MLflow ya en pie, el modelo se reentrena leyendo
+`district`/`surface`/`property_type`/`operation_type` desde el offline
+store (`get_historical_features`) — verificado sobre las 6,811 filas
+completas, cero discrepancias contra los valores de `features.parquet`.
+
+## El hallazgo central del proyecto
+
+La quinta feature, `district_avg_price_per_m2`, ya no se lee del valor
+estático de Feast — se recalcula por fold de train, de forma honesta. Y
+ahí apareció el problema: la versión honesta de esa feature **rompía** el
+modelo, no lo mejoraba.
+
+<DecisionCard title="El leakage real en district_avg_price_per_m2" tag="Modelado" accent="python">
+Con los mismos hiperparámetros del baseline, el modelo de Venta pasó de
+test R²=0.76 a **R²=-0.61**. No era un bug: se confirmó con 5 splits
+distintos y re-tuneo de hiperparámetros por CV, y ninguno hizo que la
+feature honesta superara simplemente no tenerla. La señal aparente del
+baseline era la fuga — el modelo definitivo la elimina.
+</DecisionCard>
+
+<DiagramFigure
+  src="/diagrams/leakage-before-after.svg"
+  alt="Comparación de R² de test antes y después de eliminar el leakage de district_avg_price_per_m2, para Venta y Alquiler"
+  caption="Menos R² de test, pero también mucho menos gap train-test — el costo honesto de sacar una fuga real, no una regresión a esconder."
+/>
+
+La feature se eliminó del modelo y los hiperparámetros se re-tunearon
+por CV contra el set de 3 features (`max_depth=2, min_child_weight=20`).
+El modelo definitivo es menos preciso que el baseline pero notablemente
+menos sobreajustado — y ambos modelos siguen superando ampliamente el
+baseline trivial.
+
+## Registro en MLflow
+
+<DecisionCard title="MLflow Model Registry" tag="Infra" accent="infra">
+Cada corrida se trackea en el experiment `arequipa-housing-price` (un run
+por `operation_type`: parámetros, métricas train/test/gap, el modelo como
+artifact) y se registra como **dos modelos separados** —
+`arequipa-price-venta` y `arequipa-price-alquiler` — no dos versiones del
+mismo nombre, porque son dos modelos con targets distintos, no la misma
+cosa versionada.
+</DecisionCard>
+
+## Export a ONNX
+
+<DecisionCard title="ONNX" tag="Formato" accent="python">
+Formato de despliegue elegido para que el modelo entrenado en Python se
+sirva desde `onnxruntime-node` sin depender de un runtime de Python en
+producción. Categóricas nativas de XGBoost exportan directo — la
+suposición inicial de necesitar un fallback a one-hot resultó incorrecta.
+Validado contra el test set completo de cada modelo: diferencia absoluta
+máxima de `8.58e-06` (Venta) y `3.81e-06` (Alquiler), muy por debajo de
+la tolerancia elegida (`1e-3`).
+</DecisionCard>
+
+El mapeo exacto de categorías a códigos se exporta aparte, como JSON — es
+lo que la API en Node.js usa para codificar un request sin depender de
+Python (ver [API de inferencia](/pipeline/api-inferencia)).
+
+## Artefactos de este paso
+
+<ArtifactList items={[
+  { name: "ml/training/train.py (versión definitiva)", type: "Script", description: "Ahora lee de Feast (get_historical_features), recalcula district_avg_price_per_m2 por fold, y ya no la usa. Trackea en MLflow." },
+  { name: "ml/training/export_onnx.py", type: "Script", description: "to_onnx, to_onnx_input, validate_onnx, save_category_mapping — export + validación contra el test set completo." },
+  { name: "data/processed/models/{venta,alquiler}_xgb.onnx", type: "Modelo", description: "Formato ONNX, el que sirve la API de inferencia." },
+  { name: "data/processed/models/{venta,alquiler}_categories.json", type: "Mapeo", description: "Lista ordenada de categorías por columna — posición = código. Lo consume encode.js en Node." },
+  { name: "MLflow — experiment arequipa-housing-price", type: "Tracking", description: "Un run por operation_type: parámetros, métricas train/test/gap, modelo como artifact." },
+  { name: "MLflow Model Registry", type: "Registry", description: "Dos modelos registrados: arequipa-price-venta, arequipa-price-alquiler." },
+]} />

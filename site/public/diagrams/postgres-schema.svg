@@ -1,0 +1,52 @@
+<svg viewBox="0 0 920 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Una instancia de Postgres con dos bases de datos: aqp_housing y mlflow">
+  <style>
+    text { font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace; }
+    .outer-label { font-size: 11px; letter-spacing: 0.08em; fill: #5b6572; }
+    .db-box { fill: #eee9f5; stroke: #6f6a9c; stroke-width: 1.25; }
+    .db-title { font-size: 14px; font-weight: 600; fill: #1c222b; }
+    .db-caption { font-size: 10px; fill: #5b6572; }
+    .table-card { fill: #ffffff; stroke: #d3d9df; stroke-width: 1.25; }
+    .table-title { font-size: 12.5px; font-weight: 600; fill: #1c222b; }
+    .table-caption { font-size: 9.5px; fill: #5b6572; }
+    .table-writer { font-size: 9px; fill: #8b96a3; font-style: italic; }
+  </style>
+
+  <rect x="0" y="0" width="920" height="360" fill="#ffffff" />
+
+  <rect x="20" y="20" width="880" height="330" rx="8" fill="none" stroke="#8b96a3" stroke-width="1.25" stroke-dasharray="5 4" />
+  <text class="outer-label" x="40" y="14">POSTGRES — postgres:16-alpine · UNA SOLA INSTANCIA</text>
+
+  <rect class="db-box" x="50" y="60" width="400" height="280" rx="8" />
+  <text class="db-title" x="70" y="84">aqp_housing</text>
+  <text class="db-caption" x="70" y="100">DB principal del proyecto</text>
+
+  <rect class="table-card" x="70" y="118" width="360" height="58" rx="6" />
+  <rect x="70" y="118" width="4" height="58" fill="#6f6a9c" />
+  <text class="table-title" x="86" y="138">feature_metadata</text>
+  <text class="table-caption" x="86" y="152">catálogo de features · 5 filas</text>
+  <text class="table-writer" x="86" y="166">← ml/data_prep/load_feature_metadata.py</text>
+
+  <rect class="table-card" x="70" y="186" width="360" height="58" rx="6" />
+  <rect x="70" y="186" width="4" height="58" fill="#6f6a9c" />
+  <text class="table-title" x="86" y="206">features</text>
+  <text class="table-caption" x="86" y="220">offline store de Feast · 6,811 filas</text>
+  <text class="table-writer" x="86" y="234">← ml/data_prep/load_features_to_postgres.py</text>
+
+  <rect class="table-card" x="70" y="254" width="360" height="58" rx="6" />
+  <rect x="70" y="254" width="4" height="58" fill="#6f6a9c" />
+  <text class="table-title" x="86" y="274">prediction_logs</text>
+  <text class="table-caption" x="86" y="288">trazabilidad de /predict · crece con cada request</text>
+  <text class="table-writer" x="86" y="302">← api/src/db.js</text>
+
+  <rect class="db-box" x="490" y="60" width="380" height="280" rx="8" />
+  <text class="db-title" x="510" y="84">mlflow</text>
+  <text class="db-caption" x="510" y="100">backend store de MLflow</text>
+
+  <rect class="table-card" x="510" y="130" width="340" height="180" rx="6" />
+  <rect x="510" y="130" width="4" height="180" fill="#6f6a9c" />
+  <text class="table-title" x="526" y="152">esquema propio de MLflow</text>
+  <text class="table-caption" x="526" y="172">experiments · runs · metrics · params</text>
+  <text class="table-caption" x="526" y="188">registered_models · model_versions</text>
+  <text class="table-writer" x="526" y="212">gestionado por el servidor MLflow —</text>
+  <text class="table-writer" x="526" y="226">no hay script propio que le escriba</text>
+</svg>

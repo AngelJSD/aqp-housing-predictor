@@ -1,0 +1,74 @@
+---
+layout: ../../layouts/PipelineLayout.astro
+title: "Pipeline · Baseline model"
+description: Confirmar que el problema es viable antes de invertir en infraestructura — y el overfitting real que apareció después.
+---
+
+import DiagramFigure from "../../components/DiagramFigure.astro";
+import DecisionCard from "../../components/DecisionCard.astro";
+import ArtifactList from "../../components/ArtifactList.astro";
+
+<p class="eyebrow">Pipeline · 3 de 10</p>
+
+# Baseline model
+
+<DiagramFigure
+  src="/diagrams/zoom-baseline.svg"
+  alt="Zoom mostrando Prep de datos y Entrenamiento sin ninguna infraestructura de por medio"
+  caption="Prep de datos → Entrenamiento, directo — todavía no existe Postgres, MLflow, Feast ni Docker. Por eso el diagrama grande no dibuja una flecha acá: ese camino desaparece en la versión final del sistema."
+/>
+
+Antes de invertir tiempo en infraestructura, un modelo rápido —
+hiperparámetros por defecto, directo sobre `features.parquet`, sin Feast
+ni Docker — confirma que el problema se puede aprender.
+
+<DecisionCard title="XGBoost sobre LightGBM" tag="Librería" accent="python">
+Decidido sin necesitar una comparación empírica — en un dataset de ~6,800
+filas, ambos darían calidad similar. Dos motivos concretos: su export a
+ONNX es más maduro (necesario más adelante para servir desde Node.js), y
+su soporte nativo de categóricas (`enable_categorical=True`) evita tener
+que decidir un encoding manual. Categóricas nativas terminaron ganando
+por R² y MAE contra one-hot, con 5 columnas en vez de 34.
+</DecisionCard>
+
+Dos modelos separados para Venta y Alquiler en vez de uno con
+`operation_type` como feature más ([la razón real está en Decisiones
+técnicas](/decisiones)), y target en `log(price_usd)` — mejora el MAE en
+ambos modelos.
+
+Resultado: **MAPE 15.6% en Venta, 18.0% en Alquiler** — contra un
+baseline trivial (predecir la media) de 117% y 130%. El modelo aprende
+algo real.
+
+## Overfitting encontrado, no ignorado
+
+Feedback externo de un ingeniero ML señaló que el baseline solo
+reportaba métricas de test. Comparar train vs. test reveló overfitting
+real: **train R²=0.987 vs. test R²=0.759 en Venta**, **train R²=0.997
+vs. test R²=0.534 en Alquiler**. Una validación Out-of-Time (entrenar
+excluyendo febrero 2020, evaluar sobre ese mes) confirmó que el problema
+era real, no ruido de un solo split — y de paso encontró un bug de datos
+genuino (13 filas con superficie casi cero y precio/m² absurdo,
+[ver detalle](/decisiones)).
+
+5-fold CV reveló algo más serio: con los hiperparámetros por defecto, el
+R² promedio de Venta entre folds era **-0.26 (std 2.16)** — el split
+80/20 único que se venía usando daba, por pura casualidad, un resultado
+que se veía bien. La regularización que terminó adoptándose se eligió
+por estabilidad entre folds, no por el mejor score en un split.
+
+Este modelo — con esta misma feature de precio-por-distrito, sabiendo ya
+que tiene el caveat de leakage mencionado en el [paso
+anterior](/pipeline/features) — es el que sigue de largo hasta la
+[infraestructura](/pipeline/infra-core) y el [feature
+store](/pipeline/feature-store). El leakage real no aparece hasta
+recalcular la feature de forma honesta, en el [modelo
+definitivo](/pipeline/modelo-definitivo).
+
+## Artefactos de este paso
+
+<ArtifactList items={[
+  { name: "ml/training/train.py (versión baseline)", type: "Script", description: "Entrena directo sobre features.parquet — todavía sin leer de Feast, esa versión llega en el paso 6." },
+  { name: "data/processed/models/{venta,alquiler}_xgb.json", type: "Modelo", description: "Dos modelos XGBoost nativos (formato propio, no ONNX todavía). Gitignored." },
+  { name: "notebooks/03_baseline_model.ipynb", type: "Notebook", description: "Comparaciones reales: encoding nativo vs. one-hot, un modelo vs. dos, target crudo vs. log, y las 5-fold CV que revelaron el overfitting." },
+]} />

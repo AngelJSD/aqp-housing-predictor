@@ -1,0 +1,75 @@
+---
+layout: ../../layouts/PipelineLayout.astro
+title: "Pipeline · Datos crudos"
+description: De pe_properties.csv al subset de Arequipa limpio — el embudo real de limpieza, fila por fila.
+---
+
+import DiagramFigure from "../../components/DiagramFigure.astro";
+import DecisionCard from "../../components/DecisionCard.astro";
+import ArtifactList from "../../components/ArtifactList.astro";
+
+<p class="eyebrow">Pipeline · 1 de 10</p>
+
+# Datos crudos
+
+<DiagramFigure
+  src="/diagrams/zoom-datos-prep.svg"
+  alt="Zoom sobre el nodo pe_properties y Prep de datos en el diagrama de arquitectura"
+  caption="Este paso es el nodo pe_properties → Prep de datos del diagrama completo — la mitad de clean_arequipa.py. Todavía no existe nada más del sistema."
+/>
+
+El dataset base es **"Property Listings for 5 South American Countries"**
+de Kaggle (`pe_properties.csv`) — ~124 mil anuncios de Perú. El subset de
+Arequipa (`l2 == "Arequipa"`, sin nulos en esa columna) son **12,164
+filas**, el punto de partida real del pipeline.
+
+<DecisionCard title="Parquet en vez de CSV" tag="Formato" accent="python">
+`listings.parquet`, no `.csv`, para el resultado de esta limpieza. Preserva
+dtypes — algo que ya mordió al proyecto una vez con nulos y strings
+ambiguos en el CSV crudo. Se reusa el mismo formato en cada tabla derivada
+del pipeline de ahí en adelante.
+</DecisionCard>
+
+## Limpieza mínima, deliberada
+
+El foco de evaluación del proyecto es el pipeline, no exprimir el último
+punto de R² de un modelo — así que la limpieza es la mínima necesaria
+para tener datos honestos: deduplicar, descartar lo no imputable sin
+inventar datos, normalizar moneda, y filtrar outliers de precio. Nada se
+aplicó a ciegas — cada corte se decidió mirando los números reales del
+subset de Arequipa.
+
+<DiagramFigure
+  src="/diagrams/cleaning-funnel.svg"
+  alt="Embudo de limpieza de datos: de 12,164 filas de raw data a 6,811 filas en listings.parquet"
+  caption="Cada escalón es una regla de limpieza real aplicada sobre el subset de Arequipa, con su motivo."
+  wide
+/>
+
+Dos decisiones que valen la pena explicar:
+
+**Qué cuenta como "superficie".** El dataset tiene dos columnas de
+superficie, con 38% y 57% de nulos respectivamente. En vez de exigir solo
+una (perdiendo un tercio de los datos), se coalescen con fallback —
+`surface_total`, y si falta, `surface_covered`. Cuando ambas están
+presentes, la diferencia mediana entre ellas es cero: no son cantidades
+distintas, una es un sustituto legítimo de la otra.
+
+**Outliers de precio, por tipo de operación, no globalmente.** El precio
+de venta mediano es ~150x el de un alquiler mensual. Un corte de
+percentil global apenas toca la cola de Venta y corta de forma incorrecta
+alquileres baratos pero legítimos — así que el percentil se calcula
+**dentro** de cada `operation_type`.
+
+Todo esto vive en `ml/data_prep/clean_arequipa.py` como funciones
+reutilizables, no un script monolítico — el mismo mecanismo se reusa más
+adelante para limpiar cualquier lote de datos nuevo con las mismas reglas
+(ver [Drift real](/pipeline/drift-real)).
+
+## Artefactos de este paso
+
+<ArtifactList items={[
+  { name: "ml/data_prep/clean_arequipa.py", type: "Script", description: "Funciones reutilizables: load_raw, filter_arequipa, deduplicate, coalesce_surface, drop_incomplete, normalize_currency, filter_price_outliers, filter_surface_sanity, impute_geo, save_listings." },
+  { name: "data/processed/listings.parquet", type: "Dataset", description: "6,811 filas × 27 columnas — la tabla operacional de anuncios ya limpia. Gitignored, se regenera corriendo el script." },
+  { name: "notebooks/01_eda_arequipa.ipynb", type: "Notebook", description: "EDA de completitud/nulos del subset de Arequipa — la evidencia real detrás de cada corte de limpieza." },
+]} />

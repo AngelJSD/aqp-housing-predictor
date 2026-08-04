@@ -1,0 +1,82 @@
+---
+interface Props {
+  title: string;
+  tag: string;
+  accent?: "python" | "infra" | "node" | "monitor";
+  href?: string;
+}
+
+const { title, tag, accent = "node", href } = Astro.props;
+---
+
+<article class={`card accent-${accent}`}>
+  <div class="card-head">
+    <span class="tag">{tag}</span>
+    {href && <a class="card-link" href={href}>Ver etapa →</a>}
+  </div>
+  <h3>{title}</h3>
+  <div class="card-body">
+    <slot />
+  </div>
+</article>
+
+<style>
+  .card {
+    position: relative;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.1rem 1.25rem 1.25rem 1.4rem;
+    margin: 1.25rem 0;
+  }
+
+  .card::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.9rem;
+    bottom: 0.9rem;
+    width: 4px;
+    border-radius: 2px;
+    background: var(--accent-node);
+  }
+
+  .accent-python::before {
+    background: var(--accent-python);
+  }
+  .accent-infra::before {
+    background: var(--accent-infra);
+  }
+  .accent-node::before {
+    background: var(--accent-node);
+  }
+  .accent-monitor::before {
+    background: var(--accent-monitor);
+  }
+
+  .card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.35rem;
+  }
+
+  .card-link {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+  }
+
+  .card h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1.05rem;
+  }
+
+  .card-body :global(p:last-child) {
+    margin-bottom: 0;
+  }
+
+  .card-body :global(p) {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+  }
+</style>

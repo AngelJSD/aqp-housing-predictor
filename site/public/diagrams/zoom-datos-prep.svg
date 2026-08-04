@@ -1,0 +1,37 @@
+<svg viewBox="0 0 430 140" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Zoom sobre la banda de entrenamiento offline: pe_properties y Prep de datos">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#7e93a3" />
+    </marker>
+  </defs>
+  <style>
+    text { font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace; }
+    .band-label { font-size: 11px; letter-spacing: 0.08em; fill: #5b6572; }
+    .node-box { fill: #ffffff; stroke: #d3d9df; stroke-width: 1.25; }
+    .node-title { font-size: 13px; font-weight: 600; fill: #1c222b; }
+    .node-caption { font-size: 10px; fill: #5b6572; }
+    .trace-halo { stroke: #ffffff; stroke-width: 5; fill: none; }
+    .trace-solid { stroke: #7e93a3; stroke-width: 1.6; fill: none; }
+  </style>
+
+  <rect x="0" y="0" width="430" height="140" fill="#ffffff" />
+
+  <g transform="translate(0,-32)">
+    <rect x="-20" y="46" width="470" height="108" fill="#e4e8ec" />
+    <text class="band-label" x="26" y="62">ENTRENAMIENTO OFFLINE · PYTHON</text>
+
+    <path class="trace-halo" d="M180,110 L200,110" />
+    <path class="trace-solid" d="M180,110 L200,110" marker-end="url(#arrow)" />
+
+    <rect class="node-box" x="20" y="76" width="160" height="68" rx="6" />
+    <rect x="20" y="76" width="5" height="68" fill="#b8842a" />
+    <text class="node-title" x="36" y="104">pe_properties</text>
+    <text class="node-caption" x="36" y="120">dataset crudo</text>
+
+    <rect class="node-box" x="200" y="76" width="200" height="68" rx="6" />
+    <rect x="200" y="76" width="5" height="68" fill="#b8842a" />
+    <text class="node-title" x="216" y="102">Prep de datos</text>
+    <text class="node-caption" x="216" y="118">clean_arequipa.py</text>
+    <text class="node-caption" x="216" y="131">build_features.py</text>
+  </g>
+</svg>

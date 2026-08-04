@@ -1,0 +1,96 @@
+---
+layout: ../layouts/BaseLayout.astro
+title: Decisiones técnicas
+description: Los hallazgos y decisiones con evidencia real más interesantes del pipeline, para un ingeniero de software.
+---
+
+import DecisionCard from "../components/DecisionCard.astro";
+
+<div class="container" style="padding-top: 3rem; padding-bottom: 3rem;">
+
+<p class="eyebrow">Ingeniería</p>
+
+# Decisiones técnicas
+
+Cada etapa del pipeline tuvo decisiones que se exploraron con evidencia
+real — números calculados, no supuestos — antes de tomarse. Esta página
+junta las más interesantes para alguien que ya sabe programar y quiere
+ver el razonamiento, no solo el resultado final.
+
+<DecisionCard title="El leakage real en district_avg_price_per_m2" tag="Modelado" accent="python" href="/pipeline/modelo-definitivo">
+El modelo baseline incluía el precio histórico promedio por m² de cada
+distrito como feature, calculado una sola vez sobre las 6,811 filas
+juntas. Al recalcularla de forma honesta — fiteada solo con el fold de
+train, como corresponde — el modelo de Venta **empeoró de R²=0.76 a
+R²=-0.61** con los mismos hiperparámetros. No era un bug: se confirmó
+con 5 splits distintos y re-tuneo de hiperparámetros por CV, y ninguno
+hizo que la feature honesta superara simplemente no tenerla. Se eliminó
+del modelo — la señal aparente del baseline era la fuga, no algo real
+más allá de lo que ya aporta `district` como categórica.
+</DecisionCard>
+
+<DecisionCard title="Dos modelos separados, no uno con operation_type como feature" tag="Modelado" accent="python" href="/pipeline/baseline">
+Un modelo único entrenado sobre `price_usd` crudo, con `operation_type`
+como feature más, da **R²=-567 en Alquiler** — catastrófico. La escala de
+Venta (mediana ~150x la de Alquiler) domina por completo el loss de
+squared error. Entrenar en `log(price_usd)` mejora mucho, pero dos
+modelos separados siguen siendo más fuertes, y tiene sentido más allá de
+los números: precio de venta y alquiler mensual son magnitudes
+económicas distintas, no la misma cantidad a otra escala.
+</DecisionCard>
+
+<DecisionCard title="Leave-one-out suavizado para el precio por distrito" tag="Datos" accent="python" href="/pipeline/features">
+El distrito Mollebaya (Venta) tiene 6 anuncios, uno con un outlier de
+$12,500/m² — un promedio simple ahí queda **203% inflado** por su propio
+valor. Mollendo tiene un solo anuncio: leave-one-out puro da `NaN`. Un
+suavizado (k=10 hacia la media global del `operation_type`) resuelve
+ambos casos con una sola fórmula: grupos grandes casi no se mueven de su
+media LOO, grupos chicos se contraen hacia la media global en vez de
+quedar en `NaN` o dominados por un outlier.
+</DecisionCard>
+
+<DecisionCard title="Categóricas nativas de XGBoost exportan a ONNX sin fallback" tag="Deploy" accent="python" href="/pipeline/modelo-definitivo">
+La suposición inicial era que categóricas nativas probablemente
+necesitarían caer a one-hot/ordinal encoding para exportar. Resultó
+incorrecta: `onnxmltools` las convierte directo. Dos gotchas reales
+encontrados en el camino, ninguno sobre categóricas en sí — el conversor
+exige nombres de feature con el patrón `f%d` (hay que renombrarlos sobre
+una copia del modelo, no in-place), y las columnas categóricas se pasan
+al runtime ONNX como sus códigos enteros de pandas, no como strings.
+Validado contra el test set completo de cada modelo: diferencia absoluta
+máxima de `8.58e-06`, muy por debajo de la tolerancia `1e-3`.
+</DecisionCard>
+
+<DecisionCard title="Un bug de datos real, encontrado por validación Out-of-Time" tag="Datos" accent="python" href="/pipeline/datos">
+La limpieza original solo filtraba outliers de *precio*, nunca de
+*precio-por-m²*. La validación OoT del modelo baseline salió
+catastrófica (R²=-1.52 en Venta) y llevó a investigar por qué — 13 filas
+de Venta y 1 de Alquiler tenían `surface` menor a 10 m² con precios por
+m² de hasta **$1,074,000/m²** (un caso de $2.148M con `surface=2`, casi
+seguro un error de tipeo). Fix aplicado en el origen (`filter_surface_sanity`,
+un piso absoluto de superficie en vez de un corte por percentil), pipeline
+completo re-corrido.
+</DecisionCard>
+
+<DecisionCard title="Gotchas reales de red en Docker, no obvios de antemano" tag="Infra" accent="infra">
+Tres bugs de infraestructura encontrados probando de verdad, no
+asumidos, cada uno en un paso distinto del pipeline: (1) el artifact
+store de MLflow con `--default-artifact-root` hace que el *cliente*
+intente escribir en su propio filesystem — falló con `Read-only file
+system` en macOS; el fix es `--artifacts-destination` ([Infra
+core](/pipeline/infra-core)). (2) el contenedor de la API golpeó `403
+Invalid Host header` al llamar a MLflow desde otro contenedor — el Host
+header interno no matcheaba el allowlist default ([API de
+inferencia](/pipeline/api-inferencia)). (3) el dashboard en Next.js
+standalone escuchaba solo en la IP interna del contenedor porque Docker
+siempre setea `HOSTNAME`, así que el fallback a `0.0.0.0` del propio
+Next.js nunca se activaba ([Dashboard](/pipeline/dashboard)).
+</DecisionCard>
+
+<p style="margin-top: 2.5rem; color: var(--text-muted); font-size: 0.9rem;">
+Estas son las decisiones curadas para contar la historia del proyecto —
+el detalle completo, con cada número y cada TODO, vive en <code>proyecto-mlops-plan.md</code>
+en el repo.
+</p>
+
+</div>

@@ -1,0 +1,64 @@
+<svg viewBox="0 0 1160 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Embudo de limpieza del dataset, de raw data a listings.parquet">
+  <style>
+    text { font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace; }
+    .title { font-size: 15px; font-weight: 600; fill: #1c222b; }
+    .step-title { font-size: 13px; font-weight: 600; fill: #1c222b; }
+    .step-caption { font-size: 10.5px; fill: #5b6572; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .count { font-size: 13px; font-weight: 600; fill: #1c222b; }
+    .delta { font-size: 10.5px; fill: #af5a3c; }
+    .bar { fill: #b8842a; }
+    .final-label { font-size: 12px; fill: #1f8f7f; font-weight: 600; }
+  </style>
+
+  <rect x="0" y="0" width="1160" height="600" fill="#ffffff" />
+
+  <text class="title" x="20" y="34">Limpieza del dataset: de raw data a listings.parquet</text>
+
+  <!-- Row 1: pe_properties (Arequipa) -->
+  <text class="step-title" x="250" y="83" text-anchor="end">pe_properties (Arequipa)</text>
+  <text class="step-caption" x="250" y="97" text-anchor="end">filtrado por l2 == &quot;Arequipa&quot;</text>
+  <rect class="bar" x="270" y="70" width="760.0" height="34" rx="4" opacity="1.0" />
+  <text class="count" x="1040" y="92">12,164 filas</text>
+
+  <text class="delta" x="270" y="127">−743 anuncios republicados bajo otro id/fecha</text>
+
+  <!-- Row 2: Deduplicar -->
+  <text class="step-title" x="250" y="169" text-anchor="end">Deduplicar</text>
+  <text class="step-caption" x="250" y="183" text-anchor="end">misma propiedad, distinto id</text>
+  <rect class="bar" x="270" y="156" width="713.5" height="34" rx="4" opacity="0.92" />
+  <text class="count" x="993.5" y="178">11,421 filas</text>
+
+  <text class="delta" x="270" y="213">−4,446 sin precio, superficie o distrito</text>
+
+  <!-- Row 3: Descartar incompletos -->
+  <text class="step-title" x="250" y="255" text-anchor="end">Descartar incompletos</text>
+  <text class="step-caption" x="250" y="269" text-anchor="end">precio, superficie (coalescida) o distrito nulos</text>
+  <rect class="bar" x="270" y="242" width="435.8" height="34" rx="4" opacity="0.84" />
+  <text class="count" x="715.8" y="264">6,975 filas</text>
+
+  <text class="delta" x="270" y="299">−14 moneda desconocida, no convertible</text>
+
+  <!-- Row 4: Normalizar moneda -->
+  <text class="step-title" x="250" y="341" text-anchor="end">Normalizar moneda</text>
+  <text class="step-caption" x="250" y="355" text-anchor="end">todo a USD, S/3.5 fijo (BCRP 2020)</text>
+  <rect class="bar" x="270" y="328" width="435.0" height="34" rx="4" opacity="0.76" />
+  <text class="count" x="715.0" y="350">6,961 filas</text>
+
+  <text class="delta" x="270" y="385">−136 outliers de precio (percentil 1%, por tipo de operación)</text>
+
+  <!-- Row 5: Filtrar outliers de precio -->
+  <text class="step-title" x="250" y="427" text-anchor="end">Filtrar outliers de precio</text>
+  <text class="step-caption" x="250" y="441" text-anchor="end">percentiles calculados por operation_type</text>
+  <rect class="bar" x="270" y="414" width="426.5" height="34" rx="4" opacity="0.68" />
+  <text class="count" x="706.5" y="436">6,825 filas</text>
+
+  <text class="delta" x="270" y="471">−14 surface &lt; 10 m² con precio/m² implausible</text>
+
+  <!-- Row 6: Sanity check precio/m2 -->
+  <text class="step-title" x="250" y="513" text-anchor="end">Sanity check precio/m²</text>
+  <text class="step-caption" x="250" y="527" text-anchor="end">piso absoluto de superficie, no percentil</text>
+  <rect class="bar" x="270" y="500" width="425.6" height="34" rx="4" opacity="0.6" />
+  <text class="count" x="705.6" y="522">6,811 filas</text>
+
+  <text class="final-label" x="270" y="565">→ data/processed/listings.parquet — 6,811 filas × 27 columnas</text>
+</svg>

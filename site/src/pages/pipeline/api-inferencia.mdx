@@ -1,0 +1,146 @@
+---
+layout: ../../layouts/PipelineLayout.astro
+title: "Pipeline · API de inferencia"
+description: Node.js/Fastify sirviendo el modelo ONNX — trazabilidad, categorías no vistas, y un gotcha real de red en Docker.
+---
+
+import DiagramFigure from "../../components/DiagramFigure.astro";
+import DecisionCard from "../../components/DecisionCard.astro";
+import ArtifactList from "../../components/ArtifactList.astro";
+
+<p class="eyebrow">Pipeline · 7 de 10</p>
+
+# API de inferencia
+
+<DiagramFigure
+  src="/diagrams/zoom-api.svg"
+  alt="Zoom sobre la API de inferencia y sus conexiones a ONNX, Postgres y MLflow"
+  caption="La API es el primer nodo Node.js/TypeScript del sistema — consume el volumen .onnx del paso anterior, escribe en Postgres, consulta versión a MLflow al arrancar."
+/>
+
+<DecisionCard title="Fastify" tag="Framework" accent="node">
+Servidor HTTP del proyecto para el serving — liviano, con buen soporte de
+TypeScript y hooks (`onResponse`) que después se reusan directo para
+instrumentar métricas de Prometheus.
+</DecisionCard>
+
+<DecisionCard title="onnxruntime-node" tag="Librería" accent="node">
+Corre el modelo ONNX in-process, sin depender de un runtime de Python en
+producción. Carga los dos modelos al arrancar; `operation_type` decide
+cuál usar (no es un input del modelo en sí).
+</DecisionCard>
+
+El request tipa `district`, `surface`, `property_type` y `operation_type`
+directo — se codifican con el mismo mapeo de categorías exportado desde
+Python en el paso anterior.
+
+<DiagramFigure
+  src="/diagrams/predict-sequence.svg"
+  alt="Sequence diagram de un request real a POST /predict, desde el navegador hasta la respuesta"
+  caption="El camino completo de un request real — mismo resultado exacto dentro y fuera de Docker."
+  wide
+/>
+
+## De un input de usuario a un precio, paso a paso
+
+Un requisito no negociable: la misma fila (`district`, `surface`,
+`property_type`) tiene que convertirse en el **mismo vector de números**
+tanto al entrenar en Python como al servir en Node. Si difieren en el
+orden de las columnas o en qué entero le toca a cada categoría, el modelo
+predice sobre datos que nunca vio en entrenamiento. Así se garantiza,
+archivo por archivo:
+
+1. **`ml/training/train.py` → `to_categorical`**. Sobre el fold de train,
+   `district` y `property_type` se castean a `category` de pandas. El
+   *orden* en que pandas asigna esas categorías (`train_df[c].cat.categories`)
+   es lo que define el código numérico de cada valor — esa lista es la
+   fuente de verdad, no una convención documentada aparte.
+
+2. **`ml/training/export_onnx.py` → `to_onnx_input`**. Para validar el
+   modelo exportado, convierte esas columnas a `.cat.codes` (el entero
+   interno de pandas) — código `-1` (categoría no vista) se reemplaza por
+   `NaN`. Es literalmente cómo XGBoost ve sus propias categóricas.
+
+3. **`export_onnx.py` → `save_category_mapping`**. Vuelca esa misma lista
+   ordenada de categorías — no los códigos, la lista, en orden — a
+   `{op}_categories.json`. La *posición* de un valor en esa lista es su
+   código, el mismo que asignó `to_categorical` en train:
+   ```json
+   { "district": ["Alto Selva Alegre", "Cayma", "..."], "property_type": ["Casa", "Departamento", "..."] }
+   ```
+
+4. **`api/src/encode.js` → `categoryCode`**. Node no tiene pandas, así
+   que reimplementa la misma regla a mano — `indexOf` sobre la lista del
+   JSON, `-1` mapeado a `NaN`:
+   ```js
+   function categoryCode(value, categories) {
+     const idx = categories.indexOf(value);
+     return idx === -1 ? NaN : idx;
+   }
+   ```
+   Como opera sobre la *misma lista exacta* que exportó Python, el
+   resultado es el mismo código — dos implementaciones distintas (pandas
+   vs. `indexOf`), un solo mapeo, sin margen para que diverjan.
+
+5. **`encode.js` → `encodeInput`**. Arma el vector final en el mismo
+   orden que `FEATURE_COLS` de `train.py` — `district`, `surface`,
+   `property_type` (`operation_type` no es input del modelo, solo elige
+   cuál de los dos modelos llamar):
+   ```js
+   export function encodeInput({ district, surface, property_type }, categories) {
+     return Float32Array.from([
+       categoryCode(district, categories.district),
+       surface,
+       categoryCode(property_type, categories.property_type),
+     ]);
+   }
+   ```
+
+6. **ONNX Runtime**. Corre la inferencia sobre ese vector. Un distrito
+   nunca visto en train produce `NaN` en su posición — el mismo
+   "missing" que XGBoost ya rutea nativamente, sin código especial en el
+   handler. Probado de verdad: la misma predicción comparada entre
+   `onnxruntime` Python y `onnxruntime-node` para un distrito no visto
+   (`12.144119` vs. `12.144122`, en escala log) — y vía `POST /predict`
+   real.
+
+7. **`server.js` → `Math.exp()`**. El modelo predice en escala
+   `log(price_usd)` (la decisión tomada en
+   [Baseline model](/pipeline/baseline)) — la API deshace esa
+   transformación antes de responder: `Math.exp(output.variable.data[0])`.
+
+## Trazabilidad: cada predicción queda en Postgres
+
+<DecisionCard title="pg" tag="Librería" accent="node">
+Driver de Postgres para Node — cada request exitoso inserta una fila en
+`prediction_logs` (input, predicción, versión de modelo, latencia,
+timestamp), pensado desde el principio para lo que necesitan el dashboard
+y el reporte de drift. Un 400 de validación correctamente **no** genera
+una fila.
+</DecisionCard>
+
+La versión de modelo servida se resuelve contra el Model Registry real de
+MLflow al arrancar y se cachea en memoria, no por request.
+
+## Un gotcha real: MLflow desde otro contenedor
+
+El contenedor de la API golpeó `403 Invalid Host header` al llamar a
+MLflow (`POST /registered-models/get-latest-versions`) para resolver la
+versión servida. El Host header interno (`mlflow:5000`, nombre de
+servicio de Compose) no matcheaba el allowlist default de MLflow
+(localhost + IPs privadas) — quedó sin activar en la etapa de
+infraestructura porque nada llamaba a MLflow desde otro contenedor
+todavía. Fix: `--allowed-hosts '*'` en el comando de `mlflow` — aceptable
+acá porque ese puerto nunca se expone más allá de `localhost` y la red
+interna de Compose.
+
+## Artefactos de este paso
+
+<ArtifactList items={[
+  { name: "api/src/server.js", type: "Código", description: "App de Fastify: /health, /metrics, POST /predict." },
+  { name: "api/src/encode.js", type: "Código", description: "categoryCode + encodeInput — la codificación de categorías, espejo exacto de train.py." },
+  { name: "api/src/models.js", type: "Código", description: "Carga los dos modelos ONNX + sus categories.json al arrancar." },
+  { name: "api/src/mlflow.js", type: "Código", description: "Resuelve la versión de modelo servida contra el Model Registry, cacheada en memoria." },
+  { name: "api/src/db.js", type: "Código", description: "logPrediction — inserta una fila en prediction_logs por request exitoso." },
+  { name: "api/Dockerfile", type: "Infra", description: "node:22-slim (no alpine — el binario nativo de onnxruntime-node necesita glibc)." },
+]} />

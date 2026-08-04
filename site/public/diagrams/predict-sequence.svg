@@ -1,0 +1,105 @@
+<svg viewBox="0 0 1000 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sequence diagram de un request real a POST /predict">
+  <defs>
+    <marker id="seq-arrow-teal" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#1f8f7f" />
+    </marker>
+    <marker id="seq-arrow-muted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#7e93a3" />
+    </marker>
+  </defs>
+
+  <style>
+    text { font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace; }
+    .title { font-size: 14px; font-weight: 600; fill: #1c222b; }
+    .node-box { fill: #ffffff; stroke: #d3d9df; stroke-width: 1.25; }
+    .node-title { font-size: 12.5px; font-weight: 600; fill: #1c222b; }
+    .node-caption { font-size: 9.5px; fill: #5b6572; }
+    .lifeline { stroke: #d3d9df; stroke-width: 1.25; stroke-dasharray: 3 3; }
+    .msg-solid { stroke: #1f8f7f; stroke-width: 1.6; fill: none; }
+    .msg-dashed { stroke: #7e93a3; stroke-width: 1.4; stroke-dasharray: 4 3; fill: none; }
+    .msg-label { font-size: 9.5px; fill: #1c222b; }
+    .msg-label-bg { fill: #ffffff; opacity: 0.92; }
+    .internal-dot { fill: #1f8f7f; }
+    .internal-label { font-size: 9.5px; fill: #5b6572; }
+  </style>
+
+  <rect x="0" y="0" width="1000" height="600" fill="#ffffff" />
+
+  <text class="title" x="20" y="24">Camino de un request en vivo: POST /predictor → precio</text>
+
+  <!-- lifelines -->
+  <line class="lifeline" x1="90" y1="86" x2="90" y2="556" />
+  <line class="lifeline" x1="360" y1="86" x2="360" y2="556" />
+  <line class="lifeline" x1="620" y1="86" x2="620" y2="556" />
+  <line class="lifeline" x1="880" y1="86" x2="880" y2="556" />
+
+  <!-- headers -->
+  <g>
+    <rect class="node-box" x="-5" y="40" width="190" height="46" rx="6" />
+    <text class="node-title" x="90" y="60" text-anchor="middle">Navegador</text>
+    <text class="node-caption" x="90" y="74" text-anchor="middle">usuario / jurado</text>
+  </g>
+
+  <g>
+    <rect class="node-box" x="265" y="40" width="190" height="46" rx="6" />
+    <rect x="265" y="40" width="4" height="46" fill="#1f8f7f" />
+    <text class="node-title" x="360" y="60" text-anchor="middle">Dashboard</text>
+    <text class="node-caption" x="360" y="74" text-anchor="middle">Next.js — server-side</text>
+  </g>
+
+  <g>
+    <rect class="node-box" x="525" y="40" width="190" height="46" rx="6" />
+    <rect x="525" y="40" width="4" height="46" fill="#1f8f7f" />
+    <text class="node-title" x="620" y="60" text-anchor="middle">API de inferencia</text>
+    <text class="node-caption" x="620" y="74" text-anchor="middle">Fastify + ONNX Runtime</text>
+  </g>
+
+  <g>
+    <rect class="node-box" x="785" y="40" width="190" height="46" rx="6" />
+    <rect x="785" y="40" width="4" height="46" fill="#6f6a9c" />
+    <text class="node-title" x="880" y="60" text-anchor="middle">Postgres</text>
+    <text class="node-caption" x="880" y="74" text-anchor="middle">prediction_logs</text>
+  </g>
+
+  <!-- r1: Navegador -> Dashboard -->
+  <rect class="msg-label-bg" x="95" y="107" width="260" height="12" />
+  <text class="msg-label" x="98" y="116">POST /api/predict { district, surface, ... }</text>
+  <line class="msg-solid" x1="90" y1="130" x2="360" y2="130" marker-end="url(#seq-arrow-teal)" />
+
+  <!-- r2: Dashboard -> API -->
+  <rect class="msg-label-bg" x="365" y="165" width="250" height="12" />
+  <text class="msg-label" x="368" y="174">POST http://api:3000/predict (server-side)</text>
+  <line class="msg-solid" x1="360" y1="188" x2="620" y2="188" marker-end="url(#seq-arrow-teal)" />
+
+  <!-- r3: internal on API -->
+  <circle class="internal-dot" cx="620" cy="246" r="3.5" />
+  <text class="internal-label" x="632" y="242">encode.js — district/property_type → códigos de</text>
+  <text class="internal-label" x="632" y="254">categoría; elige modelo por operation_type</text>
+
+  <!-- r4: internal on API -->
+  <circle class="internal-dot" cx="620" cy="296" r="3.5" />
+  <text class="internal-label" x="632" y="292">onnxruntime-node — inferencia in-process</text>
+  <text class="internal-label" x="632" y="304">→ log(price), luego exp()</text>
+
+  <!-- r5: API -> Postgres -->
+  <rect class="msg-label-bg" x="625" y="323" width="255" height="12" />
+  <text class="msg-label" x="628" y="332">INSERT prediction_logs (district, surface, ...)</text>
+  <line class="msg-solid" x1="620" y1="346" x2="880" y2="346" marker-end="url(#seq-arrow-teal)" />
+
+  <!-- r6: Postgres -> API (return) -->
+  <line class="msg-dashed" x1="880" y1="390" x2="620" y2="390" marker-end="url(#seq-arrow-muted)" />
+  <text class="msg-label" x="750" y="383" text-anchor="middle">OK</text>
+
+  <!-- r7: API -> Dashboard (return) -->
+  <rect class="msg-label-bg" x="365" y="417" width="260" height="12" />
+  <text class="msg-label" x="368" y="426">200 { predicted_price_usd: 122652.17, ... }</text>
+  <line class="msg-dashed" x1="620" y1="440" x2="360" y2="440" marker-end="url(#seq-arrow-muted)" />
+
+  <!-- r8: Dashboard -> Navegador (return) -->
+  <rect class="msg-label-bg" x="95" y="469" width="260" height="12" />
+  <text class="msg-label" x="98" y="478">Cayma · 115 m² · Departamento · Venta</text>
+  <line class="msg-dashed" x1="360" y1="492" x2="90" y2="492" marker-end="url(#seq-arrow-muted)" />
+  <text class="node-title" x="90" y="516" text-anchor="middle" fill="#1f8f7f">$122,652.17</text>
+
+  <text class="node-caption" x="500" y="580" text-anchor="middle">Ejemplo real validado en la etapa 7/9 — mismo resultado exacto dentro y fuera de Docker.</text>
+</svg>

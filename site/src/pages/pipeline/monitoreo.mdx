@@ -1,0 +1,66 @@
+---
+layout: ../../layouts/PipelineLayout.astro
+title: "Pipeline · Monitoreo"
+description: Prometheus para métricas de servicio, Evidently para drift de datos — dos señales distintas, dos herramientas distintas.
+---
+
+import DiagramFigure from "../../components/DiagramFigure.astro";
+import DecisionCard from "../../components/DecisionCard.astro";
+import ArtifactList from "../../components/ArtifactList.astro";
+
+<p class="eyebrow">Pipeline · 8 de 10</p>
+
+# Monitoreo
+
+<DiagramFigure
+  src="/diagrams/zoom-monitoreo.svg"
+  alt="Zoom sobre Evidently y Prometheus, leyendo de Postgres y de la API"
+  caption="Dos observadores distintos del mismo sistema: Prometheus mira la API en vivo, Evidently compara contra lo que ya está guardado en Postgres."
+/>
+
+Con la API sirviendo tráfico real, dos preguntas separadas necesitan dos
+herramientas separadas: ¿la infraestructura está sana? ¿los datos que le
+llegan al modelo siguen pareciéndose a los de entrenamiento?
+
+<DecisionCard title="Prometheus + prom-client" tag="Infra" accent="monitor">
+`prom-client` en Node expone `/metrics`: un histograma de duración
+(`http_request_duration_seconds`) y un contador de requests
+(`http_requests_total`), ambos etiquetados por método, ruta y status
+code — la tasa de error es derivable del label sin un contador aparte.
+Prometheus (`prom/prometheus:v3.6.0`) scrapea ese endpoint. Verificado
+con tráfico real generado a propósito, no solo con el healthcheck del
+contenedor.
+</DecisionCard>
+
+<DecisionCard title="Evidently" tag="Librería" accent="python">
+Compara la distribución de `district`/`surface`/`property_type` en
+`features` (entrenamiento) contra `prediction_logs` (tráfico reciente) —
+un reporte HTML por `operation_type`, guardado en su formato nativo, sin
+una capa nueva de parseo. "Periódico" acá significa invocable a mano
+(`python3 ml/monitoring/drift_report.py`), no un contenedor de cron
+nuevo — demostrar el mecanismo primero, agregar scheduling después si
+hace falta.
+</DecisionCard>
+
+Un bug de entorno real antes de que esto corriera: `import evidently`
+fallaba con `Blocked import of regex from current working directory` —
+un hook de seguridad de NLTK (dependencia transitiva de Evidently) que
+bloquea cualquier import cuyo archivo resuelto viva bajo el directorio de
+trabajo actual. Como el `.venv` del proyecto vive dentro del repo, su
+propio paquete `regex` daba falso positivo. Confirmado leyendo el código
+fuente de la librería, no adivinado — la variable de escape
+(`NLTK_DISABLE_IMPORT_SECURITY=1`) se fija al inicio del script antes de
+importar `evidently`.
+
+El drift interesante — 2020 contra el mercado real de hoy — es
+justamente el contenido de la última parada del pipeline: [Drift
+real](/pipeline/drift-real).
+
+## Artefactos de este paso
+
+<ArtifactList items={[
+  { name: "api/src/metrics.js", type: "Código", description: "Registry, Histogram (http_request_duration_seconds) y Counter (http_requests_total) de prom-client." },
+  { name: "infra/prometheus/prometheus.yml", type: "Config", description: "Job de scrape apuntando al /metrics de la API." },
+  { name: "ml/monitoring/drift_report.py", type: "Script", description: "Compara features (entrenamiento) contra prediction_logs (tráfico reciente), un reporte por operation_type." },
+  { name: "data/processed/drift_reports/{venta,alquiler}_drift.html", type: "Reporte", description: "Salida nativa de Evidently — gitignored, se regenera corriendo el script." },
+]} />

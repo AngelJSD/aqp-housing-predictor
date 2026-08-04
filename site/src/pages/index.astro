@@ -1,0 +1,166 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import DiagramFigure from "../components/DiagramFigure.astro";
+
+const demuestra = [
+  "Diseño y consumo de un feature store, offline y online, con point-in-time correctness real.",
+  "Tracking de experimentos y versionado de modelos en un registry.",
+  "Despliegue de un modelo a un entorno de producción real (Docker, servidor propio).",
+  "Trazabilidad de cada predicción servida.",
+  "Monitoreo de infraestructura y de datos/modelo (drift).",
+  "Integración de un ecosistema ML en Python con un stack de producción en Node.js, con decisiones de arquitectura justificadas — no “usé lo que ya sabía”.",
+];
+
+const cards = [
+  { href: "/arquitectura", tag: "Sistema", title: "Arquitectura", body: "Las 4 bandas del pipeline y la decisión clave: el navegador solo le habla al dashboard." },
+  { href: "/pipeline", tag: "Recorrido", title: "Pipeline", body: "10 pasos, en el orden real en que se construyó — cada uno un zoom al diagrama de arquitectura." },
+  { href: "/decisiones", tag: "Ingeniería", title: "Decisiones técnicas", body: "Los hallazgos más interesantes, con la evidencia real que los sostiene — no solo la conclusión." },
+  { href: "/stack", tag: "Stack", title: "Stack tecnológico", body: "Qué se usó en cada capa y por qué se dividió el trabajo entre Python y Node.js." },
+];
+---
+
+<BaseLayout title="Inicio">
+  <div class="container hero">
+    <p class="eyebrow">Proyecto final · MLOps de extremo a extremo</p>
+    <h1>Predictor de precio de propiedades — Arequipa</h1>
+    <p class="lede">
+      Dado un distrito, una superficie, un tipo de propiedad y un tipo de
+      operación (venta o alquiler), el sistema estima el precio. Es una
+      pregunta que cualquiera entiende — “¿el precio que me piden es
+      razonable?” — resuelta con un pipeline completo: feature store,
+      tracking de experimentos, API de inferencia, monitoreo de drift y un
+      dashboard de observabilidad.
+    </p>
+    <div class="cta-row">
+      <a class="btn primary" href="/arquitectura">Ver arquitectura</a>
+      <a class="btn" href="/pipeline">Explorar el pipeline</a>
+      <a class="btn" href="https://github.com/AngelJSD/aqp-housing-predictor" target="_blank" rel="noopener noreferrer">Código en GitHub ↗</a>
+    </div>
+  </div>
+
+  <div class="container-wide">
+    <DiagramFigure
+      src="/architecture.svg"
+      alt="Arquitectura completa del pipeline: entrenamiento offline, infraestructura core, serving y monitoreo, producto y cliente"
+      caption="Arquitectura completa — 4 dominios (Python, infraestructura, Node.js, monitoreo) y el camino de request en vivo resaltado en verde."
+      wide
+    />
+  </div>
+
+  <div class="container">
+    <h2>Qué demuestra este proyecto</h2>
+    <ul class="checklist">
+      {demuestra.map((item) => <li>{item}</li>)}
+    </ul>
+
+    <h2>Un dato real, no simulado</h2>
+    <p>
+      El dataset base es de 2020 (<code>pe_properties.csv</code>, subset de
+      Arequipa — ~12,200 anuncios). En vez de tratarlo como una limitación,
+      el proyecto lo aprovecha: en lugar de simular drift artificialmente, el
+      modelo entrenado con datos de 2020 se compara contra un lote de
+      anuncios reales y actuales de Arequipa. El drift que aparece —
+      inflación, cambios de mercado post-pandemia, tipo de cambio — es real,
+      no inventado. Es un argumento más honesto que una demo con datos
+      sintéticos, y el sitio no esconde la parte de esto que todavía está
+      pendiente de ejecutar (ver <a href="/pipeline/drift-real">Drift real</a>).
+    </p>
+
+    <h2>Seguir explorando</h2>
+    <div class="card-grid">
+      {
+        cards.map((c) => (
+          <a class="nav-card" href={c.href}>
+            <span class="tag">{c.tag}</span>
+            <h3>{c.title}</h3>
+            <p>{c.body}</p>
+          </a>
+        ))
+      }
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .hero {
+    padding: 3.5rem 1.5rem 2rem;
+    max-width: 760px;
+  }
+
+  .cta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+  }
+
+  .btn {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    padding: 0.55rem 1.1rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  .btn:hover {
+    text-decoration: none;
+    border-color: var(--accent-node);
+  }
+
+  .btn.primary {
+    background: var(--accent-node);
+    border-color: var(--accent-node);
+    color: #fff;
+  }
+
+  .btn.primary:hover {
+    opacity: 0.9;
+  }
+
+  .checklist {
+    padding-left: 1.1rem;
+  }
+
+  .checklist li {
+    margin-bottom: 0.5rem;
+  }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    margin: 1.25rem 0 3rem;
+  }
+
+  .nav-card {
+    display: block;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.1rem 1.25rem;
+    color: var(--text);
+  }
+
+  .nav-card:hover {
+    text-decoration: none;
+    border-color: var(--accent-node);
+  }
+
+  .nav-card h3 {
+    margin: 0.4rem 0 0.3rem;
+    font-size: 1.05rem;
+  }
+
+  .nav-card p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+
+  @media (max-width: 640px) {
+    .card-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

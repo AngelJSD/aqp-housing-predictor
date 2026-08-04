@@ -1,0 +1,134 @@
+---
+layout: ../../layouts/PipelineLayout.astro
+title: "Pipeline · Infraestructura core"
+description: Postgres, Redis, MLflow y Feast en Docker Compose — versiones, decisiones y los bugs reales al levantarlos.
+---
+
+import DiagramFigure from "../../components/DiagramFigure.astro";
+import DecisionCard from "../../components/DecisionCard.astro";
+import ArtifactList from "../../components/ArtifactList.astro";
+
+<p class="eyebrow">Pipeline · 4 de 10</p>
+
+# Infraestructura core
+
+<DiagramFigure
+  src="/diagrams/zoom-infra.svg"
+  alt="Zoom sobre la banda de infraestructura core: Postgres, MLflow, Feast, Redis"
+  caption="La banda completa de infraestructura — los 4 servicios que el resto del sistema va a dar por sentado de acá en adelante."
+/>
+
+Con el baseline validado, recién acá se justifica invertir en
+infraestructura real: Postgres, Redis, MLflow y el feature server de
+Feast, todos en Docker Compose sobre un servidor propio (no cloud
+gestionado).
+
+<DecisionCard title="Docker Compose, servidor propio" tag="Infra" accent="infra">
+Un solo `docker-compose.yml` orquesta los 4 servicios (y más adelante, la
+API y el dashboard) sobre un servidor propio. No hay justificación de
+escala para un orquestador gestionado en un proyecto de este tamaño —
+Compose es reproducible, versionado en git, y cualquiera puede levantar
+el stack completo con un comando.
+</DecisionCard>
+
+<DecisionCard title="Postgres" tag="Infra" accent="infra">
+`postgres:16-alpine`, una sola instancia con dos bases de datos: `aqp_housing`
+(`feature_metadata`, `features`, `prediction_logs` — todo lo propio del
+proyecto) y `mlflow` (el backend store de tracking). Separar en dos DBs
+evita mezclar tablas internas de MLflow con las del proyecto, sin pagar
+el costo de un segundo contenedor.
+</DecisionCard>
+
+### Una instancia, dos bases de datos
+
+<DiagramFigure
+  src="/diagrams/postgres-schema.svg"
+  alt="Diagrama de la instancia de Postgres con las bases aqp_housing (feature_metadata, features, prediction_logs) y mlflow"
+  caption="aqp_housing tiene 3 tablas propias, cada una escrita por un script o servicio distinto. mlflow es un esquema que MLflow gestiona solo — nunca le escribimos directo."
+  wide
+/>
+
+Las 3 tablas de `aqp_housing` se crean acá (schema vacío, vía
+`infra/postgres/init/*.sql`, montado en `docker-entrypoint-initdb.d`) pero
+se pueblan en pasos distintos del pipeline — separar esquema de datos deja
+recargar cualquiera de las tres sin reiniciar el volumen de Postgres:
+
+```sql
+-- 02_create_feature_metadata.sql — poblada en este mismo paso
+CREATE TABLE feature_metadata (
+    name TEXT PRIMARY KEY, description TEXT NOT NULL, dtype TEXT NOT NULL,
+    source_columns TEXT NOT NULL, transformation TEXT NOT NULL,
+    feast_feature_view TEXT NOT NULL, owner TEXT NOT NULL,
+    created_at DATE NOT NULL, version INTEGER NOT NULL
+);
+
+-- 03_create_features.sql — poblada en el paso 5 (Feature store)
+CREATE TABLE features (
+    id TEXT PRIMARY KEY, created_on TIMESTAMP NOT NULL,
+    district TEXT NOT NULL, surface DOUBLE PRECISION NOT NULL,
+    property_type TEXT NOT NULL, operation_type TEXT NOT NULL,
+    district_avg_price_per_m2 DOUBLE PRECISION NOT NULL,
+    price_usd DOUBLE PRECISION NOT NULL
+);
+
+-- 04_create_prediction_logs.sql — poblada en el paso 7 (API de inferencia)
+CREATE TABLE prediction_logs (
+    id SERIAL PRIMARY KEY, requested_at TIMESTAMP NOT NULL DEFAULT now(),
+    operation_type TEXT NOT NULL, district TEXT NOT NULL,
+    surface DOUBLE PRECISION NOT NULL, property_type TEXT NOT NULL,
+    predicted_price_usd DOUBLE PRECISION NOT NULL,
+    model_version TEXT NOT NULL, latency_ms DOUBLE PRECISION NOT NULL
+);
+```
+
+`feature_metadata` se carga acá mismo con
+`ml/data_prep/load_feature_metadata.py` — un *upsert* (`ON CONFLICT (name)
+DO UPDATE`), no un insert puro, así que re-correrlo tras editar el CSV no
+duplica filas. Las otras dos tablas siguen vacías hasta sus pasos
+correspondientes.
+
+<DecisionCard title="Redis" tag="Infra" accent="infra">
+`redis:7-alpine` con `--appendonly yes` (persistencia AOF). No es un cache
+descartable — es el online store de Feast, así que un restart del
+contenedor sin AOF perdería los valores ya materializados.
+</DecisionCard>
+
+<DecisionCard title="MLflow" tag="Infra" accent="infra">
+`ghcr.io/mlflow/mlflow:v3.12.0` extendido con `psycopg2-binary` (la
+imagen oficial no trae driver de Postgres). Tracking + Model Registry en
+un solo servidor.
+</DecisionCard>
+
+## Un bug real: artifacts de MLflow
+
+`--default-artifact-root /mlruns` hace que el **cliente** de MLflow
+intente escribir artifacts directo en su propio filesystem — asumiendo
+storage compartido con el servidor. Probado con el cliente real corriendo
+en el host: falló con `OSError: Read-only file system` (la raíz de macOS
+es read-only). El fix es `--artifacts-destination /mlruns` en vez de
+`--default-artifact-root`, manteniendo `--serve-artifacts` — así el
+cliente sube/baja artifacts vía HTTP al servidor, y es el servidor quien
+escribe a su propio disco.
+
+## Feast, todavía sin feature views
+
+`feature_repo/feature_store.yaml` se define acá — registry, offline store
+apuntando a Postgres, online store apuntando a Redis — pero **sin feature
+views todavía** (eso es el [próximo paso](/pipeline/feature-store)).
+Introspeccionando el paquete `feast` instalado (no adivinado de memoria)
+aparecieron dos gotchas reales: el offline store de Postgres de Feast usa
+`psycopg` v3 internamente (no `psycopg2`, el driver que sí usan MLflow y
+el resto del proyecto), y su default de `sslmode` es `require` — el
+Postgres local no tiene SSL configurado, así que hace falta
+`sslmode: disable` explícito o falla con `server does not support SSL`.
+
+## Artefactos de este paso
+
+<ArtifactList items={[
+  { name: "docker-compose.yml", type: "Config", description: "Orquesta los 7 servicios del proyecto (acá se agregan los primeros 4)." },
+  { name: ".env.example", type: "Config", description: "Credenciales, puertos, y variables como MLFLOW_ARTIFACTS_DESTINATION." },
+  { name: "infra/postgres/init/*.sql", type: "Schema", description: "4 scripts: crear la DB mlflow, y las tablas feature_metadata/features/prediction_logs (vacías)." },
+  { name: "infra/mlflow/Dockerfile", type: "Infra", description: "Extiende la imagen oficial de MLflow con psycopg2-binary." },
+  { name: "feature_repo/feature_store.yaml", type: "Config", description: "Registry + offline store (Postgres) + online store (Redis) — sin feature views todavía." },
+  { name: "ml/data_prep/load_feature_metadata.py", type: "Script", description: "Carga ml/feature_metadata.csv a la tabla real, vía upsert." },
+]} />

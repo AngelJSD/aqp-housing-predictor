@@ -1,0 +1,118 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const stack = [
+  { componente: "Feature store (offline)", tech: "Feast + Postgres", dominio: "infra" },
+  { componente: "Feature store (online)", tech: "Feast + Redis", dominio: "infra" },
+  { componente: "Catálogo de metadata de features", tech: "Tabla feature_metadata en Postgres", dominio: "infra" },
+  { componente: "Entrenamiento y tracking", tech: "Python + XGBoost + MLflow", dominio: "python" },
+  { componente: "Registro de modelos", tech: "MLflow Model Registry", dominio: "python" },
+  { componente: "Formato de despliegue del modelo", tech: "ONNX", dominio: "python" },
+  { componente: "API de inferencia", tech: "Node.js / Fastify + onnxruntime-node", dominio: "node" },
+  { componente: "Métricas de servicio", tech: "Prometheus (prom-client en Node)", dominio: "monitor" },
+  { componente: "Detección de drift", tech: "Evidently (Python)", dominio: "monitor" },
+  { componente: "Dashboard de monitoreo", tech: "Next.js + Recharts", dominio: "node" },
+  { componente: "Orquestación / infraestructura", tech: "Docker + Docker Compose (servidor propio)", dominio: "infra" },
+];
+
+const dominioLabel: Record<string, string> = {
+  python: "Python",
+  infra: "Infra",
+  node: "Node.js",
+  monitor: "Monitoreo",
+};
+---
+
+<BaseLayout title="Stack" description="Stack tecnológico del pipeline, componente por componente, y por qué se dividió entre Python y Node.js.">
+  <div class="container top">
+    <p class="eyebrow">Stack</p>
+    <h1>Stack tecnológico</h1>
+    <p class="lede">
+      Cada fila es una elección concreta, no un default. La columna
+      "dominio" es la misma paleta del diagrama de arquitectura — para ver
+      de un vistazo qué corre en Python, qué es infraestructura pura y qué
+      es Node.js.
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Componente</th>
+          <th>Tecnología</th>
+          <th>Dominio</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          stack.map((row) => (
+            <tr>
+              <td>{row.componente}</td>
+              <td><code>{row.tech}</code></td>
+              <td>
+                <span class={`dot dot-${row.dominio}`} />
+                {dominioLabel[row.dominio]}
+              </td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+
+    <h2>Algunas elecciones, con su porqué</h2>
+
+    <h3>XGBoost sobre LightGBM</h3>
+    <p>
+      Decidido sin necesitar una comparación empírica — en un dataset de
+      ~6,800 filas, ambos darían calidad similar. Dos motivos concretos: su
+      export a ONNX es más maduro (necesario para servir desde Node.js), y
+      su soporte nativo de categóricas evita tener que decidir un encoding
+      manual.
+    </p>
+
+    <h3>ONNX como formato de despliegue</h3>
+    <p>
+      Permite que el modelo entrenado en Python se sirva desde
+      <code>onnxruntime-node</code> sin depender de un runtime de Python en
+      producción. Validado con la comparación real: diferencia absoluta
+      máxima de <code>8.58e-06</code> entre las predicciones del modelo
+      original y el exportado — muy por debajo de la tolerancia elegida
+      (<code>1e-3</code>).
+    </p>
+
+    <h3>Postgres consultado directo por cada servicio que lo necesita</h3>
+    <p>
+      Feast, la API de inferencia y el dashboard se conectan cada uno
+      directo a Postgres para lo que necesitan — sin una capa de
+      indirección extra. La API de inferencia no se convierte en un
+      gateway general de datos; queda enfocada en su trabajo real: servir
+      predicciones.
+    </p>
+  </div>
+</BaseLayout>
+
+<style>
+  .top {
+    padding: 3rem 1.5rem 3rem;
+  }
+
+  .dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 0.4rem;
+  }
+
+  .dot-python {
+    background: var(--accent-python);
+  }
+  .dot-infra {
+    background: var(--accent-infra);
+  }
+  .dot-node {
+    background: var(--accent-node);
+  }
+  .dot-monitor {
+    background: var(--accent-monitor);
+  }
+</style>

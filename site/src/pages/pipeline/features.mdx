@@ -1,0 +1,68 @@
+---
+layout: ../../layouts/PipelineLayout.astro
+title: "Pipeline · Features"
+description: La única feature derivada del proyecto y el catálogo de metadata que la documenta.
+---
+
+import DiagramFigure from "../../components/DiagramFigure.astro";
+import DecisionCard from "../../components/DecisionCard.astro";
+import ArtifactList from "../../components/ArtifactList.astro";
+
+<p class="eyebrow">Pipeline · 2 de 10</p>
+
+# Features
+
+<DiagramFigure
+  src="/diagrams/zoom-datos-prep.svg"
+  alt="Zoom sobre el nodo Prep de datos en el diagrama de arquitectura"
+  caption="Mismo nodo que el paso anterior — el diagrama de arquitectura no distingue 'limpiar' de 'construir features': ambos son la otra mitad de Prep de datos, build_features.py."
+/>
+
+`listings.parquet` (6,811 filas) es la tabla operacional de anuncios —
+todavía no son features. `ml/data_prep/build_features.py` lee esa tabla y
+agrega la única feature derivada del proyecto: `district_avg_price_per_m2`,
+el precio histórico promedio por m² de cada distrito.
+
+<DecisionCard title="Leave-one-out suavizado, no promedio simple" tag="Ingeniería de features" accent="python">
+El distrito Mollebaya (Venta) tiene 6 anuncios, uno con un outlier de
+$12,500/m² — un promedio simple ahí queda **203% inflado** por su propio
+valor (leakage real, no teórico). Mollendo tiene un solo anuncio: LOO puro
+da `NaN`. Un suavizado (`k=10` hacia la media global del `operation_type`)
+resuelve ambos casos con una sola fórmula: grupos grandes casi no se mueven
+de su media LOO, grupos chicos se contraen hacia la media global en vez de
+quedar en `NaN` o dominados por un outlier.
+</DecisionCard>
+
+Esta versión de la feature — calculada una sola vez sobre las 6,811 filas
+juntas — tiene un caveat conocido desde el principio: una fila de test
+todavía puede reflejar en algo el precio de otras filas de test de su
+mismo distrito. Aceptable para el baseline exploratorio del [próximo
+paso](/pipeline/baseline); si esto importa para el modelo definitivo, se
+recalcula ahí solo con el fold de train — y de hecho terminó siendo el
+hallazgo central del proyecto (ver [Modelo
+definitivo](/pipeline/modelo-definitivo)).
+
+## El catálogo de metadata
+
+Las 4 features base — `district`, `surface`, `property_type`,
+`operation_type` — más `district_avg_price_per_m2` quedan documentadas en
+un catálogo (`feature_metadata`): nombre, descripción, tipo de dato,
+columna de origen, transformación, feature view de Feast asociada, owner,
+versión. Es documentación humano-legible, independiente del registry
+interno de Feast, pensada para que el dashboard la pueda mostrar
+directamente como referencia (ver [Stack](/stack) para el detalle de cada
+componente).
+
+Hoy vive como CSV trackeado en git (`ml/feature_metadata.csv`) — Postgres
+recién existe en el [próximo paso de infraestructura](/pipeline/infra-core),
+así que se carga ahí como tabla real. El detalle completo de cada feature
+está en la tabla del [Feature store](/pipeline/feature-store#catálogo).
+
+## Artefactos de este paso
+
+<ArtifactList items={[
+  { name: "ml/data_prep/build_features.py", type: "Script", description: "load_listings, smoothed_district_avg, build_features, save_features." },
+  { name: "data/processed/features.parquet", type: "Dataset", description: "6,811 filas × 8 columnas: id, created_on, 4 features base, district_avg_price_per_m2, price_usd." },
+  { name: "ml/feature_metadata.csv", type: "Catálogo", description: "5 filas documentando cada feature — trackeado en git, no gitignored, a diferencia del resto de data/processed/." },
+  { name: "notebooks/02_feature_eda.ipynb", type: "Notebook", description: "EDA que confirma qué columnas son predictivas y motiva el suavizado leave-one-out." },
+]} />

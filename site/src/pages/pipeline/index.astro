@@ -1,0 +1,168 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+
+const stages = [
+  {
+    n: 1,
+    href: "/pipeline/datos",
+    title: "Datos crudos",
+    body: "Raw data → tabla listings limpia. El embudo real de 12,164 a 6,811 filas, y por qué cada corte.",
+    accent: "python",
+  },
+  {
+    n: 2,
+    href: "/pipeline/features",
+    title: "Features",
+    body: "district_avg_price_per_m2 con leave-one-out suavizado, y el catálogo feature_metadata.",
+    accent: "python",
+  },
+  {
+    n: 3,
+    href: "/pipeline/baseline",
+    title: "Baseline model",
+    body: "XGBoost sin infraestructura todavía — confirmar que el problema es viable, y el overfitting real que apareció después.",
+    accent: "python",
+  },
+  {
+    n: 4,
+    href: "/pipeline/infra-core",
+    title: "Infra core",
+    body: "Postgres, Redis, MLflow y Feast en Docker Compose — versiones, decisiones, y el bug real de artifacts de MLflow.",
+    accent: "infra",
+  },
+  {
+    n: 5,
+    href: "/pipeline/feature-store",
+    title: "Feature store",
+    body: "Feast: offline store en Postgres, online store en Redis, point-in-time correctness.",
+    accent: "infra",
+  },
+  {
+    n: 6,
+    href: "/pipeline/modelo-definitivo",
+    title: "Modelo definitivo",
+    body: "Leyendo desde Feast — el leakage real que se encontró y se sacó, registro en MLflow, export a ONNX.",
+    accent: "python",
+  },
+  {
+    n: 7,
+    href: "/pipeline/api-inferencia",
+    title: "API de inferencia",
+    body: "Node.js/Fastify sirviendo el modelo ONNX, trazabilidad de cada predicción.",
+    accent: "node",
+  },
+  {
+    n: 8,
+    href: "/pipeline/monitoreo",
+    title: "Monitoreo",
+    body: "Prometheus para métricas de servicio, Evidently para drift de datos — dos herramientas, dos preguntas distintas.",
+    accent: "monitor",
+  },
+  {
+    n: 9,
+    href: "/pipeline/dashboard",
+    title: "Dashboard",
+    body: "Next.js junta todo en un solo lugar — único punto de entrada del navegador.",
+    accent: "node",
+  },
+  {
+    n: 10,
+    href: "/pipeline/drift-real",
+    title: "Drift real",
+    body: "2020 vs. hoy: la receta para comparar el modelo contra el mercado actual — y lo que quedó pendiente por tiempo.",
+    accent: "monitor",
+  },
+];
+---
+
+<BaseLayout title="Pipeline" description="Recorrido por el pipeline completo, paso a paso, en el orden real en que se construyó.">
+  <div class="container top">
+    <p class="eyebrow">Recorrido</p>
+    <h1>Pipeline</h1>
+    <p class="lede">
+      10 pasos, en el orden real en que se construyó el proyecto — no
+      agrupados por tema. Cada uno es un zoom sobre la parte del diagrama
+      de arquitectura que le corresponde, con las herramientas que entraron
+      en ese momento y por qué. La arquitectura completa se explica aparte,
+      en <a href="/arquitectura">Arquitectura</a>.
+    </p>
+
+    <ol class="stage-list">
+      {
+        stages.map((s) => (
+          <li>
+            <a class={`stage-card accent-${s.accent}`} href={s.href}>
+              <span class="stage-num">{s.n}</span>
+              <span class="stage-copy">
+                <strong>{s.title}</strong>
+                <span>{s.body}</span>
+              </span>
+            </a>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+</BaseLayout>
+
+<style>
+  .top {
+    padding: 3rem 1.5rem 3rem;
+  }
+
+  .stage-list {
+    list-style: none;
+    padding: 0;
+    margin: 2rem 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+
+  .stage-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent-node);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    color: var(--text);
+  }
+
+  .stage-card.accent-python {
+    border-left-color: var(--accent-python);
+  }
+  .stage-card.accent-infra {
+    border-left-color: var(--accent-infra);
+  }
+  .stage-card.accent-monitor {
+    border-left-color: var(--accent-monitor);
+  }
+
+  .stage-card:hover {
+    text-decoration: none;
+    border-left-width: 4px;
+    background: var(--accent-node-soft);
+  }
+
+  .stage-num {
+    font-family: var(--font-mono);
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    min-width: 1.6rem;
+  }
+
+  .stage-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .stage-copy span:last-child {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+</style>

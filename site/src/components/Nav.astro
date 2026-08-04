@@ -1,0 +1,135 @@
+---
+const links = [
+  { href: "/", label: "Inicio" },
+  { href: "/arquitectura", label: "Arquitectura" },
+  { href: "/pipeline", label: "Pipeline" },
+  { href: "/decisiones", label: "Decisiones" },
+  { href: "/stack", label: "Stack" },
+];
+
+const path = Astro.url.pathname;
+const isActive = (href: string) =>
+  href === "/" ? path === "/" : path.startsWith(href);
+---
+
+<header class="nav">
+  <div class="container-wide nav-inner">
+    <a class="brand" href="/">
+      <span class="brand-dot"></span>
+      aqp-housing-predictor
+    </a>
+    <nav>
+      <ul>
+        {
+          links.map((link) => (
+            <li>
+              <a href={link.href} aria-current={isActive(link.href) ? "page" : undefined}>
+                {link.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+    <a
+      class="gh-link"
+      href="https://github.com/AngelJSD/aqp-housing-predictor"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      GitHub ↗
+    </a>
+  </div>
+</header>
+
+<style>
+  .nav {
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .nav-inner {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding-top: 0.9rem;
+    padding-bottom: 0.9rem;
+    flex-wrap: wrap;
+  }
+
+  .brand {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    margin-right: auto;
+  }
+
+  .brand:hover {
+    text-decoration: none;
+  }
+
+  .brand-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--accent-node);
+    display: inline-block;
+  }
+
+  nav ul {
+    list-style: none;
+    display: flex;
+    gap: 1.25rem;
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+  }
+
+  nav a {
+    color: var(--text-muted);
+  }
+
+  nav a:hover {
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  nav a[aria-current="page"] {
+    color: var(--accent-node);
+  }
+
+  .gh-link {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.3rem 0.75rem;
+  }
+
+  .gh-link:hover {
+    color: var(--text);
+    text-decoration: none;
+    border-color: var(--text-muted);
+  }
+
+  @media (max-width: 640px) {
+    .nav-inner {
+      gap: 0.75rem;
+    }
+    nav ul {
+      gap: 0.85rem;
+      order: 3;
+      width: 100%;
+    }
+  }
+</style>
