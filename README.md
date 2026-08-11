@@ -4,6 +4,8 @@ Predicts sale/rent prices for real estate listings in Arequipa, Peru, from prope
 
 ![Pipeline architecture](architecture-en.svg)
 
+In-depth documentation (Spanish): https://mlops-project.angeljsd.dev
+
 ## Stage 0 — Setup
 
 Requires Python 3.
