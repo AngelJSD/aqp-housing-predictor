@@ -2,7 +2,7 @@
 
 Predicts sale/rent prices for real estate listings in Arequipa, Peru, from property attributes (district, surface, type, operation). Built as an end-to-end MLOps pipeline: raw data to production model, with feature store, experiment tracking, inference API, monitoring, and dashboard. Model served via ONNX behind a Node.js/Fastify API.
 
-![Pipeline architecture](architecture.svg)
+![Pipeline architecture](architecture-en.svg)
 
 ## Stage 0 — Setup
 
